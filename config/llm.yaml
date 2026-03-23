@@ -1,0 +1,49 @@
+# ── AutoNomX LLM Provider Configuration ──────────────────────
+# LLM sağlayıcı tanımları
+
+providers:
+  ollama:
+    name: "Ollama"
+    type: "local"
+    base_url: "http://localhost:11434"
+    priority: 1  # Düşük = yüksek öncelik (local tercih edilir)
+    models:
+      - "qwen2.5-coder:32b"
+      - "qwen2.5-coder:14b"
+      - "deepseek-r1:14b"
+      - "deepseek-coder-v2:16b"
+      - "codellama:13b"
+
+  lm_studio:
+    name: "LM Studio"
+    type: "local"
+    base_url: "http://localhost:1234/v1"
+    priority: 2
+
+  openai:
+    name: "OpenAI"
+    type: "api"
+    base_url: "https://api.openai.com/v1"
+    api_key_env: "OPENAI_API_KEY"
+    priority: 10
+    models:
+      - "gpt-4o"
+      - "gpt-4o-mini"
+
+  anthropic:
+    name: "Anthropic"
+    type: "api"
+    base_url: "https://api.anthropic.com"
+    api_key_env: "ANTHROPIC_API_KEY"
+    priority: 10
+    models:
+      - "claude-sonnet"
+
+# ── Model Escalation ────────────────────────────────────────
+escalation:
+  strategy: "step_up"
+  steps:
+    - action: "retry_same_model"
+    - action: "upgrade_model"
+    - action: "change_worker"
+    - action: "use_api_model"

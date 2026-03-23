@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package autonomx.execution;
+
+option csharp_namespace = "AutoNomX.Infrastructure.Grpc.Execution";
+
+// ── Code Execution Service ──────────────────────────────────
+// Kod çalıştırma (Docker / Host / Sandbox — Strategy Pattern)
+service CodeExecutionService {
+  // Kod çalıştır
+  rpc Execute(ExecuteCodeRequest) returns (ExecuteCodeResponse);
+
+  // Canlı çıktı ile kod çalıştır
+  rpc ExecuteStream(ExecuteCodeRequest) returns (stream ExecuteCodeEvent);
+}
+
+// ── Request / Response ──────────────────────────────────────
+
+message ExecuteCodeRequest {
+  string execution_id = 1;
+  string project_id = 2;
+  string command = 3;
+  string working_directory = 4;
+  ExecutionEnvironment environment = 5;
+  int32 timeout_seconds = 6;
+  map<string, string> env_vars = 7;
+}
+
+enum ExecutionEnvironment {
+  EXECUTION_ENVIRONMENT_UNSPECIFIED = 0;
+  EXECUTION_ENVIRONMENT_DOCKER = 1;
+  EXECUTION_ENVIRONMENT_HOST = 2;
+  EXECUTION_ENVIRONMENT_SANDBOX = 3;
+}
+
+message ExecuteCodeResponse {
+  string execution_id = 1;
+  int32 exit_code = 2;
+  string stdout = 3;
+  string stderr = 4;
+  double duration_seconds = 5;
+  bool timed_out = 6;
+}
+
+message ExecuteCodeEvent {
+  string execution_id = 1;
+  OutputType output_type = 2;
+  string data = 3;
+  string timestamp = 4;
+}
+
+enum OutputType {
+  OUTPUT_TYPE_UNSPECIFIED = 0;
+  OUTPUT_TYPE_STDOUT = 1;
+  OUTPUT_TYPE_STDERR = 2;
+  OUTPUT_TYPE_EXIT = 3;
+}

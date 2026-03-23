@@ -1,0 +1,84 @@
+version: "3.8"
+
+services:
+  # ── PostgreSQL 16 ──────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: autonomx-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-autonomx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-autonomx_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-autonomx}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-autonomx}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── .NET Core API ──────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: autonomx-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5000
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-autonomx};Username=${POSTGRES_USER:-autonomx};Password=${POSTGRES_PASSWORD:-autonomx_dev}"
+      AgentService__GrpcUrl: http://agent-runtime:50051
+    ports:
+      - "${API_PORT:-5000}:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - workspace_data:/app/workspace
+
+  # ── Python Agent Runtime ───────────────────────────────────
+  agent-runtime:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agents
+    container_name: autonomx-agents
+    restart: unless-stopped
+    environment:
+      GRPC_PORT: 50051
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-autonomx}:${POSTGRES_PASSWORD:-autonomx_dev}@postgres:5432/${POSTGRES_DB:-autonomx}"
+      LLM_GATEWAY_URL: ${LLM_GATEWAY_URL:-http://ollama:11434}
+      OLLAMA_BASE_URL: http://ollama:11434
+    ports:
+      - "${GRPC_PORT:-50051}:50051"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - workspace_data:/app/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # ── Ollama (Local LLM) ────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: autonomx-ollama
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  postgres_data:
+  workspace_data:
+  ollama_data:

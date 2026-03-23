@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package autonomx.common;
+
+option csharp_namespace = "AutoNomX.Infrastructure.Grpc.Common";
+
+// ── Enums ───────────────────────────────────────────────────
+
+enum ProjectStatus {
+  PROJECT_STATUS_UNSPECIFIED = 0;
+  PROJECT_STATUS_CREATED = 1;
+  PROJECT_STATUS_PLANNING = 2;
+  PROJECT_STATUS_IN_PROGRESS = 3;
+  PROJECT_STATUS_TESTING = 4;
+  PROJECT_STATUS_REVIEWING = 5;
+  PROJECT_STATUS_COMPLETED = 6;
+  PROJECT_STATUS_FAILED = 7;
+  PROJECT_STATUS_PAUSED = 8;
+}
+
+enum TaskStatus {
+  TASK_STATUS_UNSPECIFIED = 0;
+  TASK_STATUS_READY = 1;
+  TASK_STATUS_IN_PROGRESS = 2;
+  TASK_STATUS_TESTING = 3;
+  TASK_STATUS_REVIEW = 4;
+  TASK_STATUS_DONE = 5;
+  TASK_STATUS_FAILED = 6;
+  TASK_STATUS_REVISION = 7;
+}
+
+enum TaskPriority {
+  TASK_PRIORITY_UNSPECIFIED = 0;
+  TASK_PRIORITY_MUST = 1;
+  TASK_PRIORITY_SHOULD = 2;
+  TASK_PRIORITY_COULD = 3;
+}
+
+enum AgentType {
+  AGENT_TYPE_UNSPECIFIED = 0;
+  AGENT_TYPE_PRODUCT_OWNER = 1;
+  AGENT_TYPE_PLANNER = 2;
+  AGENT_TYPE_ARCHITECT = 3;
+  AGENT_TYPE_MODEL_MANAGER = 4;
+  AGENT_TYPE_CODER = 5;
+  AGENT_TYPE_TESTER = 6;
+  AGENT_TYPE_REVIEWER = 7;
+}
+
+// ── Messages ────────────────────────────────────────────────
+
+message AgentConfig {
+  string agent_id = 1;
+  AgentType agent_type = 2;
+  string model = 3;
+  string provider = 4;
+  map<string, string> parameters = 5;
+}
+
+message TaskInfo {
+  string task_id = 1;
+  string project_id = 2;
+  string title = 3;
+  string description = 4;
+  TaskStatus status = 5;
+  TaskPriority priority = 6;
+  repeated string dependencies = 7;
+  repeated string files_touched = 8;
+  string assigned_worker = 9;
+}
+
+message LlmConfig {
+  string model = 1;
+  string provider = 2;
+  double temperature = 3;
+  int32 max_tokens = 4;
+}

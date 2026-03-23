@@ -1,0 +1,26 @@
+# ── Build stage ──────────────────────────────────────────────
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Copy solution and project files for restore
+COPY src/AutoNomX.sln ./
+COPY src/core/AutoNomX.Domain/AutoNomX.Domain.csproj core/AutoNomX.Domain/
+COPY src/core/AutoNomX.Application/AutoNomX.Application.csproj core/AutoNomX.Application/
+COPY src/core/AutoNomX.Infrastructure/AutoNomX.Infrastructure.csproj core/AutoNomX.Infrastructure/
+COPY src/api/AutoNomX.Api/AutoNomX.Api.csproj api/AutoNomX.Api/
+COPY src/cli/AutoNomX.Cli/AutoNomX.Cli.csproj cli/AutoNomX.Cli/
+
+RUN dotnet restore
+
+# Copy all source and build
+COPY src/ ./
+RUN dotnet publish api/AutoNomX.Api/AutoNomX.Api.csproj -c Release -o /app/publish --no-restore
+
+# ── Runtime stage ────────────────────────────────────────────
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+
+COPY --from=build /app/publish .
+
+EXPOSE 5000
+ENTRYPOINT ["dotnet", "AutoNomX.Api.dll"]

@@ -1,0 +1,73 @@
+# ── AutoNomX Agent Configuration ─────────────────────────────
+# Agent tanımları ve varsayılan LLM modelleri
+
+agents:
+  product_owner:
+    type: product_owner
+    model: "ollama/deepseek-r1:14b"
+    provider: ollama
+    description: "İstek analizi, user story oluşturma, kullanıcı chat"
+    parameters:
+      temperature: 0.7
+      max_tokens: 4096
+
+  planner:
+    type: planner
+    model: "ollama/deepseek-r1:14b"
+    provider: ollama
+    description: "User story → teknik task dönüşümü"
+    parameters:
+      temperature: 0.5
+      max_tokens: 4096
+
+  architect:
+    type: architect
+    model: "ollama/qwen2.5-coder:14b"
+    provider: ollama
+    description: "Proje yapısı, scaffolding, sprint yönetimi"
+    parameters:
+      temperature: 0.3
+      max_tokens: 8192
+
+  model_manager:
+    type: model_manager
+    model: "ollama/deepseek-r1:14b"
+    provider: ollama
+    description: "LLM atama, performans takibi, model optimizasyonu"
+    parameters:
+      temperature: 0.3
+      max_tokens: 2048
+
+  tester:
+    type: tester
+    model: "ollama/qwen2.5-coder:14b"
+    provider: ollama
+    description: "Test yazma ve çalıştırma"
+    parameters:
+      temperature: 0.2
+      max_tokens: 8192
+
+  reviewer:
+    type: reviewer
+    model: "anthropic/claude-sonnet"
+    provider: anthropic
+    description: "Kod kalitesi, güvenlik, onay"
+    parameters:
+      temperature: 0.2
+      max_tokens: 8192
+
+# ── Coder Worker Pool ────────────────────────────────────────
+coder_pool:
+  workers:
+    - count: 2
+      model: "ollama/qwen2.5-coder:32b"
+      provider: ollama
+    - count: 1
+      model: "ollama/deepseek-coder-v2:16b"
+      provider: ollama
+
+  # Worker davranış ayarları
+  settings:
+    max_retries: 3
+    task_pick_strategy: "smart"  # smart | fifo | priority
+    file_lock_mode: "hard"       # hard | soft
