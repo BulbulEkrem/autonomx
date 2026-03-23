@@ -1,4 +1,5 @@
 using AutoNomX.Domain.Interfaces;
+using AutoNomX.Infrastructure.EventBus;
 using AutoNomX.Infrastructure.Persistence;
 using AutoNomX.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -31,7 +32,9 @@ public static class DependencyInjection
         services.AddScoped<IAgentMetricsRepository, AgentMetricsRepository>();
         services.AddScoped<IProjectFileRepository, ProjectFileRepository>();
 
-        // TODO (M1-#13): Register EventBus
+        // EventBus (PostgreSQL LISTEN/NOTIFY)
+        services.AddSingleton<PostgresEventBus>();
+        services.AddSingleton<IEventBus>(sp => sp.GetRequiredService<PostgresEventBus>());
 
         return services;
     }
