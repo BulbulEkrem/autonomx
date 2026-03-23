@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package autonomx.project;
+
+option csharp_namespace = "AutoNomX.Infrastructure.Grpc.Project";
+
+import "common.proto";
+
+// ── Project Service ─────────────────────────────────────────
+// Python → .NET: proje ve task bilgisi sorgulama
+service ProjectService {
+  // Proje bilgisi getir
+  rpc GetProject(GetProjectRequest) returns (GetProjectResponse);
+
+  // Task board'u getir
+  rpc GetTaskBoard(GetTaskBoardRequest) returns (GetTaskBoardResponse);
+
+  // Task durumunu güncelle
+  rpc UpdateTaskStatus(UpdateTaskStatusRequest) returns (UpdateTaskStatusResponse);
+
+  // Dosya kilidi al / bırak
+  rpc AcquireFileLock(FileLockRequest) returns (FileLockResponse);
+  rpc ReleaseFileLock(FileLockRequest) returns (FileLockResponse);
+}
+
+// ── Request / Response ──────────────────────────────────────
+
+message GetProjectRequest {
+  string project_id = 1;
+}
+
+message GetProjectResponse {
+  string project_id = 1;
+  string name = 2;
+  string description = 3;
+  autonomx.common.ProjectStatus status = 4;
+  string config = 5;                         // JSON
+  repeated autonomx.common.TaskInfo tasks = 6;
+}
+
+message GetTaskBoardRequest {
+  string project_id = 1;
+  autonomx.common.TaskStatus filter_status = 2;
+}
+
+message GetTaskBoardResponse {
+  repeated autonomx.common.TaskInfo tasks = 1;
+}
+
+message UpdateTaskStatusRequest {
+  string task_id = 1;
+  autonomx.common.TaskStatus new_status = 2;
+  string assigned_worker = 3;
+  repeated string files_touched = 4;
+  string result = 5;                         // JSON — opsiyonel sonuç
+}
+
+message UpdateTaskStatusResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message FileLockRequest {
+  string task_id = 1;
+  string worker_id = 2;
+  repeated string file_paths = 3;
+}
+
+message FileLockResponse {
+  bool success = 1;
+  repeated string locked_by_others = 2;      // Başkası tarafından kilitli dosyalar
+  string message = 3;
+}

@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package autonomx.agent;
+
+option csharp_namespace = "AutoNomX.Infrastructure.Grpc.Agent";
+
+import "common.proto";
+
+// ── Agent Service ───────────────────────────────────────────
+// .NET → Python: görev verme, agent çalıştırma
+service AgentService {
+  // Tek seferlik agent çalıştırma (unary)
+  rpc ExecuteAgent(ExecuteAgentRequest) returns (ExecuteAgentResponse);
+
+  // Canlı çıktı ile agent çalıştırma (server streaming)
+  rpc ExecuteAgentStream(ExecuteAgentRequest) returns (stream AgentStreamEvent);
+
+  // Agent durumunu sorgulama
+  rpc GetAgentStatus(GetAgentStatusRequest) returns (GetAgentStatusResponse);
+
+  // Çalışan agent'ı iptal etme
+  rpc CancelAgent(CancelAgentRequest) returns (CancelAgentResponse);
+}
+
+// ── Request / Response ──────────────────────────────────────
+
+message ExecuteAgentRequest {
+  string execution_id = 1;
+  string project_id = 2;
+  autonomx.common.AgentType agent_type = 3;
+  autonomx.common.AgentConfig config = 4;
+  autonomx.common.TaskInfo task = 5;
+  string context = 6;                        // JSON — önceki agent'lardan gelen bağlam
+  map<string, string> metadata = 7;
+}
+
+message ExecuteAgentResponse {
+  string execution_id = 1;
+  bool success = 2;
+  string result = 3;                         // JSON — agent çıktısı
+  string error = 4;
+  AgentMetrics metrics = 5;
+}
+
+message AgentStreamEvent {
+  string execution_id = 1;
+  StreamEventType event_type = 2;
+  string data = 3;                           // JSON payload
+  string timestamp = 4;
+}
+
+enum StreamEventType {
+  STREAM_EVENT_TYPE_UNSPECIFIED = 0;
+  STREAM_EVENT_TYPE_LOG = 1;
+  STREAM_EVENT_TYPE_PROGRESS = 2;
+  STREAM_EVENT_TYPE_OUTPUT = 3;
+  STREAM_EVENT_TYPE_ERROR = 4;
+  STREAM_EVENT_TYPE_COMPLETED = 5;
+}
+
+message GetAgentStatusRequest {
+  string execution_id = 1;
+}
+
+message GetAgentStatusResponse {
+  string execution_id = 1;
+  autonomx.common.AgentType agent_type = 2;
+  string status = 3;
+  double progress = 4;                       // 0.0 — 1.0
+}
+
+message CancelAgentRequest {
+  string execution_id = 1;
+  string reason = 2;
+}
+
+message CancelAgentResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message AgentMetrics {
+  int32 total_tokens = 1;
+  int32 prompt_tokens = 2;
+  int32 completion_tokens = 3;
+  double duration_seconds = 4;
+  int32 iterations = 5;
+  string model_used = 6;
+}
