@@ -1,5 +1,6 @@
 using AutoNomX.Domain.Interfaces;
 using AutoNomX.Infrastructure.Persistence;
+using AutoNomX.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,7 +21,16 @@ public static class DependencyInjection
         // Unit of Work
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<AutoNomXDbContext>());
 
-        // TODO (M1-#12): Register Repository implementations
+        // Repositories
+        services.AddScoped<IProjectRepository, ProjectRepository>();
+        services.AddScoped<ITaskRepository, TaskRepository>();
+        services.AddScoped<IAgentRepository, AgentRepository>();
+        services.AddScoped<IPipelineRunRepository, PipelineRunRepository>();
+        services.AddScoped<ICoderWorkerRepository, CoderWorkerRepository>();
+        services.AddScoped<IAgentHistoryRepository, AgentHistoryRepository>();
+        services.AddScoped<IAgentMetricsRepository, AgentMetricsRepository>();
+        services.AddScoped<IProjectFileRepository, ProjectFileRepository>();
+
         // TODO (M1-#13): Register EventBus
 
         return services;
