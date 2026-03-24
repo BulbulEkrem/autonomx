@@ -16,6 +16,8 @@ public class AutoNomXDbContext(DbContextOptions<AutoNomXDbContext> options) : Db
     public DbSet<AgentMessage> AgentMessages => Set<AgentMessage>();
     public DbSet<ProjectFile> ProjectFiles => Set<ProjectFile>();
     public DbSet<ChangeLog> ChangeLogs => Set<ChangeLog>();
+    public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

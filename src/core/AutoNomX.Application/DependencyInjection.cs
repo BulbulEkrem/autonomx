@@ -13,6 +13,7 @@ public static class DependencyInjection
         // Application Services
         services.AddScoped<TaskBoardService>();
         services.AddScoped<WorkerPoolService>();
+        services.AddScoped<ChatService>();
         services.AddScoped<OrchestratorService>();
 
         // Background event handler
