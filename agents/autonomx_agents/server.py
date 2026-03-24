@@ -12,6 +12,8 @@ import grpc
 
 from autonomx_agents.core.registry import discover_agents, discover_plugins, list_agents
 from autonomx_agents.grpc_services.agent_servicer import AgentServicer
+from autonomx_agents.grpc_services.event_publisher import PostgresEventPublisher
+from autonomx_agents.grpc_services.generated import agent_service_pb2_grpc
 from autonomx_agents.llm import LLMGateway
 
 logger = logging.getLogger(__name__)
@@ -38,6 +40,14 @@ async def serve() -> None:
     gateway = LLMGateway.from_config(LLM_CONFIG_PATH)
     logger.info("LLM Gateway ready: providers=%s", gateway.list_providers())
 
+    # ── Initialize Postgres Event Publisher ───────────────────
+    event_publisher = PostgresEventPublisher()
+    if event_publisher.is_available:
+        await event_publisher.connect()
+        logger.info("Postgres event publisher connected")
+    else:
+        logger.info("Postgres event publisher not available (no DATABASE_URL or psycopg)")
+
     # ── Create gRPC server ───────────────────────────────────
     server = grpc.aio.server(
         options=[
@@ -46,16 +56,12 @@ async def serve() -> None:
         ],
     )
 
-    # Register services
-    # NOTE: After `make proto`, uncomment the proper registration:
-    # from autonomx_agents.grpc_services.generated import agent_service_pb2_grpc
-    # agent_service_pb2_grpc.add_AgentServiceServicer_to_server(AgentServicer(), server)
-    _servicer = AgentServicer()
-    logger.info("AgentServicer created (proto stubs pending — run `make proto`)")
-
-    # Add health check via gRPC reflection (useful for debugging)
-    # from grpc_reflection.v1alpha import reflection
-    # reflection.enable_server_reflection(..., server)
+    # Register AgentService with generated stubs
+    servicer = AgentServicer(
+        event_publisher=event_publisher.publish if event_publisher.is_available else None,
+    )
+    agent_service_pb2_grpc.add_AgentServiceServicer_to_server(servicer, server)
+    logger.info("AgentServicer registered with gRPC server")
 
     listen_addr = f"[::]:{GRPC_PORT}"
     server.add_insecure_port(listen_addr)
@@ -79,6 +85,7 @@ async def serve() -> None:
 
     logger.info("Shutting down gracefully (5s grace period)...")
     await server.stop(grace=5)
+    await event_publisher.close()
     logger.info("Agent runtime stopped.")
 
 
