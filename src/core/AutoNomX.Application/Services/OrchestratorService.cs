@@ -22,6 +22,7 @@ public class OrchestratorService(
     IEventBus eventBus,
     IUnitOfWork unitOfWork,
     TaskBoardService taskBoard,
+    WorkerPoolService workerPool,
     IMediator mediator,
     ILogger<OrchestratorService> logger,
     ILogger<PipelineStateMachine> smLogger)
@@ -273,25 +274,64 @@ public class OrchestratorService(
 
     private async Task RunCodingPhaseAsync(PipelineStateMachine sm, CancellationToken ct)
     {
-        var readyTasks = await taskBoard.GetReadyTasksAsync(sm.ProjectId, ct);
-        var idleWorkers = await workerRepo.GetIdleWorkersAsync(ct);
+        logger.LogInformation("Starting parallel coding phase for project {ProjectId}", sm.ProjectId);
 
-        if (readyTasks.Count == 0)
+        // Loop: assign tasks to workers, wait for completions, self-pick next
+        while (!ct.IsCancellationRequested)
         {
-            // All tasks assigned or done — move to testing
-            if (sm.CanFire(PipelineTrigger.CodeReady))
-                await sm.FireAsync(PipelineTrigger.CodeReady);
-            return;
+            var readyTasks = await taskBoard.GetReadyTasksAsync(sm.ProjectId, ct);
+            var idleWorkers = await workerRepo.GetIdleWorkersAsync(ct);
+
+            // If no ready tasks and no in-progress tasks → coding phase done
+            if (readyTasks.Count == 0)
+            {
+                var codingDone = await taskBoard.IsCodingPhaseCompleteAsync(sm.ProjectId, ct);
+                if (codingDone)
+                    break;
+
+                // Tasks still in progress — wait a bit for workers to finish
+                await Task.Delay(500, ct);
+                continue;
+            }
+
+            if (idleWorkers.Count == 0)
+            {
+                // All workers busy — wait for one to finish
+                await Task.Delay(500, ct);
+                continue;
+            }
+
+            // Launch parallel worker tasks
+            var workerTasks = new List<Task>();
+
+            foreach (var worker in idleWorkers)
+            {
+                // Self-pick best task for this worker
+                var task = await taskBoard.PickTaskForWorkerAsync(worker.Id, sm.ProjectId, ct);
+                if (task is null) continue;
+
+                logger.LogInformation("Worker {Name} picked task {TaskId}: {Title}",
+                    worker.Name, task.Id, task.Title);
+
+                // Run coder in parallel
+                workerTasks.Add(RunCoderForTaskAsync(sm, task, worker, ct));
+            }
+
+            if (workerTasks.Count == 0)
+            {
+                await Task.Delay(500, ct);
+                continue;
+            }
+
+            // Wait for at least one worker to finish, then loop to assign more
+            await Task.WhenAny(workerTasks);
         }
 
-        // Assign tasks to available workers
-        foreach (var (task, worker) in readyTasks.Zip(idleWorkers))
+        // All coding tasks done → transition
+        if (sm.CanFire(PipelineTrigger.CodeReady))
         {
-            var assigned = await taskBoard.AssignTaskAsync(task.Id, worker.Id, ct);
-            if (!assigned) continue;
-
-            // Fire agent asynchronously (result comes back via HandleAgentResultAsync)
-            _ = RunCoderForTaskAsync(sm, task, worker, ct);
+            await sm.FireAsync(PipelineTrigger.CodeReady);
+            await ProcessStateAsync(sm, ct: ct);
         }
     }
 
@@ -325,6 +365,10 @@ public class OrchestratorService(
             logger.LogError(ex, "Coder failed for task {TaskId}", task.Id);
             await taskBoard.FailTaskAsync(task.Id, ex.Message, ct);
         }
+
+        // After task completes, clean up offline workers
+        if (workerPool is not null)
+            await workerPool.CleanupOfflineWorkersAsync(ct);
     }
 
     private async Task RunTestingPhaseAsync(PipelineStateMachine sm, CancellationToken ct)

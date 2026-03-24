@@ -250,6 +250,158 @@ public class TaskBoardService(
         var tasks = await taskRepo.GetByProjectIdAsync(projectId, ct);
         return tasks.Count > 0 && tasks.All(t => t.Status == TaskItemStatus.Done);
     }
+
+    /// <summary>Check if all coding tasks are either Done or Failed (no InProgress/Ready).</summary>
+    public async Task<bool> IsCodingPhaseCompleteAsync(
+        Guid projectId,
+        CancellationToken ct = default)
+    {
+        var tasks = await taskRepo.GetByProjectIdAsync(projectId, ct);
+        if (tasks.Count == 0) return true;
+
+        return tasks.All(t =>
+            t.Status is TaskItemStatus.Done or TaskItemStatus.Failed);
+    }
+
+    // ── Self-Pick Task Selection ────────────────────────────────
+
+    /// <summary>
+    /// Pick the best available task for a specific worker using smart selection:
+    /// 1. Dependencies satisfied (all deps are Done)
+    /// 2. No file lock conflicts
+    /// 3. Context affinity (same area as worker's last task)
+    /// 4. Priority ordering: Must > Should > Could
+    /// </summary>
+    public async Task<TaskItem?> PickTaskForWorkerAsync(
+        Guid workerId,
+        Guid projectId,
+        CancellationToken ct = default)
+    {
+        var worker = await workerRepo.GetByIdAsync(workerId, ct);
+        if (worker is null || worker.Status != WorkerStatus.Idle)
+            return null;
+
+        var readyTasks = await GetReadyTasksAsync(projectId, ct);
+        if (readyTasks.Count == 0)
+            return null;
+
+        // Get worker's last completed task for context affinity
+        var allTasks = await taskRepo.GetByProjectIdAsync(projectId, ct);
+        var lastWorkerTask = allTasks
+            .Where(t => t.AssignedWorker == workerId.ToString() && t.Status == TaskItemStatus.Done)
+            .MaxBy(t => t.UpdatedAt);
+
+        var lastFiles = lastWorkerTask?.FilesTouched.ToHashSet() ?? [];
+
+        // Score and sort tasks
+        var scored = readyTasks
+            .Select(task =>
+            {
+                var score = 0;
+
+                // Priority bonus
+                score += task.Priority switch
+                {
+                    TaskItemPriority.Must => 300,
+                    TaskItemPriority.Should => 200,
+                    TaskItemPriority.Could => 100,
+                    _ => 0,
+                };
+
+                // Context affinity: bonus if task touches same files/dirs as worker's last task
+                if (lastFiles.Count > 0 && task.FilesTouched.Count > 0)
+                {
+                    var overlap = task.FilesTouched.Count(f =>
+                        lastFiles.Any(lf => SharesDirectory(f, lf)));
+                    score += overlap * 50;
+                }
+
+                return (task, score);
+            })
+            .OrderByDescending(x => x.score)
+            .ToList();
+
+        var bestTask = scored.FirstOrDefault().task;
+        if (bestTask is null)
+            return null;
+
+        // Attempt assignment
+        var assigned = await AssignTaskAsync(bestTask.Id, workerId, ct);
+        return assigned ? bestTask : null;
+    }
+
+    // ── File Locking ────────────────────────────────────────────
+
+    /// <summary>Lock specific files for a task.</summary>
+    public async Task<bool> LockFilesAsync(
+        Guid projectId,
+        Guid taskId,
+        IEnumerable<string> files,
+        string workerId,
+        CancellationToken ct = default)
+    {
+        var filesToLock = files.ToList();
+        var locked = new List<string>();
+
+        foreach (var file in filesToLock)
+        {
+            var success = await fileRepo.TryAcquireLockAsync(projectId, file, workerId, ct);
+            if (!success)
+            {
+                logger.LogWarning("File lock conflict: {File} (task={TaskId})", file, taskId);
+                // Rollback
+                foreach (var acquired in locked)
+                    await fileRepo.ReleaseLockAsync(projectId, acquired, ct);
+                return false;
+            }
+            locked.Add(file);
+        }
+
+        await unitOfWork.SaveChangesAsync(ct);
+        return true;
+    }
+
+    /// <summary>Unlock all files held by a task.</summary>
+    public async Task UnlockFilesAsync(
+        Guid projectId,
+        Guid taskId,
+        CancellationToken ct = default)
+    {
+        var task = await taskRepo.GetByIdAsync(taskId, ct);
+        if (task is null) return;
+
+        foreach (var file in task.FilesTouched)
+            await fileRepo.ReleaseLockAsync(projectId, file, ct);
+
+        await unitOfWork.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Check if a specific file is locked.</summary>
+    public async Task<bool> IsFileLockedAsync(
+        Guid projectId,
+        string filePath,
+        CancellationToken ct = default)
+    {
+        var file = await fileRepo.GetByPathAsync(projectId, filePath, ct);
+        return file?.LockedByWorker is not null;
+    }
+
+    /// <summary>Get all locked files for a project.</summary>
+    public async Task<IReadOnlyList<ProjectFile>> GetLockedFilesAsync(
+        Guid projectId,
+        CancellationToken ct = default)
+    {
+        return await fileRepo.GetLockedFilesAsync(projectId, ct);
+    }
+
+    // ── Private helpers ─────────────────────────────────────────
+
+    private static bool SharesDirectory(string path1, string path2)
+    {
+        var dir1 = Path.GetDirectoryName(path1) ?? "";
+        var dir2 = Path.GetDirectoryName(path2) ?? "";
+        return dir1.Equals(dir2, StringComparison.OrdinalIgnoreCase) && dir1 != "";
+    }
 }
 
 public record BoardStatus(
