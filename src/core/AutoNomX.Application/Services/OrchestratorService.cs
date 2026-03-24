@@ -23,6 +23,8 @@ public class OrchestratorService(
     IUnitOfWork unitOfWork,
     TaskBoardService taskBoard,
     WorkerPoolService workerPool,
+    ModelManagerService modelManager,
+    MetricsService metricsService,
     IGitService gitService,
     IMediator mediator,
     ILogger<OrchestratorService> logger,
@@ -323,19 +325,55 @@ public class OrchestratorService(
                 continue;
             }
 
-            // Launch parallel worker tasks
+            // Launch parallel worker tasks with Model Manager assignment
             var workerTasks = new List<Task>();
 
-            foreach (var worker in idleWorkers)
+            foreach (var task in readyTasks)
             {
-                // Self-pick best task for this worker
-                var task = await taskBoard.PickTaskForWorkerAsync(worker.Id, sm.ProjectId, ct);
-                if (task is null) continue;
+                if (idleWorkers.Count == 0) break;
 
-                logger.LogInformation("Worker {Name} picked task {TaskId}: {Title}",
-                    worker.Name, task.Id, task.Title);
+                // Ask Model Manager for optimal worker+model assignment
+                TaskAssignmentDecision? assignment = null;
+                try
+                {
+                    assignment = await modelManager.RequestTaskAssignmentAsync(task, idleWorkers, ct);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Model Manager assignment failed, falling back to self-pick");
+                }
 
-                // Run coder in parallel
+                CoderWorker? worker;
+                if (assignment is not null && assignment.WorkerId != Guid.Empty)
+                {
+                    worker = idleWorkers.FirstOrDefault(w => w.Id == assignment.WorkerId)
+                        ?? idleWorkers.FirstOrDefault();
+
+                    // Apply model recommendation if different
+                    if (worker is not null && worker.Model != assignment.Model)
+                    {
+                        await modelManager.UpdateWorkerModelAsync(worker.Id, assignment.Model, ct);
+                        worker.Model = assignment.Model;
+                    }
+
+                    logger.LogInformation(
+                        "Model Manager assigned task {TaskId} to {Worker} ({Model}): {Reason}",
+                        task.Id, assignment.WorkerName, assignment.Model, assignment.Reasoning);
+                }
+                else
+                {
+                    worker = idleWorkers.FirstOrDefault();
+                }
+
+                if (worker is null) break;
+
+                // Assign via task board
+                var assigned = await taskBoard.AssignTaskAsync(task.Id, worker.Id, ct);
+                if (!assigned) continue;
+
+                // Remove from available pool for this round
+                idleWorkers = idleWorkers.Where(w => w.Id != worker.Id).ToList();
+
                 workerTasks.Add(RunCoderForTaskAsync(sm, task, worker, ct));
             }
 
@@ -363,8 +401,8 @@ public class OrchestratorService(
         CoderWorker worker,
         CancellationToken ct)
     {
-        var projectPath = GetProjectPath(sm.ProjectId);
         var branchName = $"feature/T-{task.Id.ToString()[..8]}-{SanitizeBranchName(task.Title)}";
+        var startTime = DateTime.UtcNow;
 
         try
         {
@@ -383,17 +421,40 @@ public class OrchestratorService(
                     TaskDescription: task.Description),
                 ct);
 
+            var duration = (DateTime.UtcNow - startTime).TotalSeconds;
+
             if (result.Success)
             {
                 // Git: commit on feature branch
-                await GitCommitSafe(sm.ProjectId,
-                    $"feat: {task.Title}", ct);
-
+                await GitCommitSafe(sm.ProjectId, $"feat: {task.Title}", ct);
                 await taskBoard.CompleteTaskAsync(task.Id, result.ResultJson, ct);
+
+                // Record success metrics
+                await RecordMetricsSafe(worker.Id, worker.Model, result, duration, true, ct);
             }
             else
             {
                 await taskBoard.FailTaskAsync(task.Id, result.Error ?? "Unknown error", ct);
+
+                // Record failure metrics
+                await RecordMetricsSafe(worker.Id, worker.Model, result, duration, false, ct);
+
+                // Check if we should escalate the model
+                var updatedTask = await taskRepo.GetByIdAsync(task.Id, ct);
+                if (updatedTask is not null && updatedTask.RetryCount >= 2)
+                {
+                    var switchDecision = await modelManager.HandleFailureAsync(
+                        worker.Id, task.Id, updatedTask.RetryCount, ct);
+
+                    if (switchDecision is not null)
+                    {
+                        logger.LogInformation(
+                            "Model escalation: {Worker} {Old} → {New} (step {Step}): {Reason}",
+                            switchDecision.WorkerName, switchDecision.OldModel,
+                            switchDecision.NewModel, switchDecision.EscalationStep,
+                            switchDecision.Reason);
+                    }
+                }
             }
         }
         catch (Exception ex)
@@ -404,6 +465,22 @@ public class OrchestratorService(
 
         // After task completes, clean up offline workers
         await workerPool.CleanupOfflineWorkersAsync(ct);
+    }
+
+    private async Task RecordMetricsSafe(
+        Guid workerId, string model, AgentExecutionResult result,
+        double duration, bool success, CancellationToken ct)
+    {
+        try
+        {
+            await metricsService.RecordTaskCompletionAsync(
+                workerId, model, result.Iterations, result.TotalTokens,
+                duration, success, ct: ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to record metrics (non-fatal)");
+        }
     }
 
     private async Task RunTestingPhaseAsync(PipelineStateMachine sm, CancellationToken ct)
@@ -432,11 +509,54 @@ public class OrchestratorService(
                 ProjectId: sm.ProjectId.ToString()),
             ct);
 
+        // Extract and record reviewer scores per task
+        await RecordReviewScoresSafe(sm.ProjectId, result, ct);
+
         var trigger = await DetermineReviewTriggerAsync(sm.ProjectId, result, ct);
         if (sm.CanFire(trigger))
         {
             await sm.FireAsync(trigger);
             await ProcessStateAsync(sm, result.ResultJson, ct);
+        }
+    }
+
+    private async Task RecordReviewScoresSafe(Guid projectId, AgentExecutionResult result, CancellationToken ct)
+    {
+        if (!result.Success) return;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(result.ResultJson);
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("categories", out var cats))
+            {
+                var scores = new ReviewScores(
+                    Correctness: cats.TryGetProperty("correctness", out var c) ? c.GetDouble() : 0,
+                    CodeQuality: cats.TryGetProperty("code_quality", out var q) ? q.GetDouble() : 0,
+                    Security: cats.TryGetProperty("security", out var s) ? s.GetDouble() : 0,
+                    Performance: cats.TryGetProperty("performance", out var p) ? p.GetDouble() : 0,
+                    Completeness: cats.TryGetProperty("completeness", out var comp) ? comp.GetDouble() : 0);
+
+                // Record scores for all recently completed task workers
+                var tasks = await taskRepo.GetByProjectIdAsync(projectId, ct);
+                foreach (var task in tasks.Where(t => t.Status == TaskItemStatus.Done && t.AssignedWorker is not null))
+                {
+                    if (Guid.TryParse(task.AssignedWorker, out var workerId))
+                    {
+                        var worker = await workerRepo.GetByIdAsync(workerId, ct);
+                        if (worker is not null)
+                        {
+                            await metricsService.RecordTaskCompletionAsync(
+                                workerId, worker.Model, 0, 0, 0, true, scores, ct);
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Could not extract review scores (non-fatal)");
         }
     }
 

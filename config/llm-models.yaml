@@ -1,0 +1,209 @@
+# ── AutoNomX LLM Model Registry ─────────────────────────────
+# Model Manager bu bilgiyi karar verirken kullanir.
+# Her model icin: strengths, language_specialties, context_window, speed_tier, cost_tier
+
+models:
+  # ── Local Models (Ollama) ──────────────────────────────────
+  ollama/qwen2.5-coder:32b:
+    display_name: "Qwen 2.5 Coder 32B"
+    provider: ollama
+    type: local
+    context_window: 32768
+    speed_tier: slow        # slow | medium | fast
+    cost_tier: free         # free | low | medium | high
+    strengths:
+      - coding
+      - reasoning
+      - analysis
+      - refactoring
+    language_specialties:
+      - python
+      - javascript
+      - typescript
+      - csharp
+      - java
+      - go
+    quality_rating: 9       # 1-10
+
+  ollama/qwen2.5-coder:14b:
+    display_name: "Qwen 2.5 Coder 14B"
+    provider: ollama
+    type: local
+    context_window: 32768
+    speed_tier: medium
+    cost_tier: free
+    strengths:
+      - coding
+      - testing
+    language_specialties:
+      - python
+      - javascript
+      - typescript
+    quality_rating: 7
+
+  ollama/deepseek-r1:14b:
+    display_name: "DeepSeek R1 14B"
+    provider: ollama
+    type: local
+    context_window: 32768
+    speed_tier: medium
+    cost_tier: free
+    strengths:
+      - reasoning
+      - analysis
+      - planning
+    language_specialties:
+      - python
+      - javascript
+    quality_rating: 7
+
+  ollama/deepseek-coder-v2:16b:
+    display_name: "DeepSeek Coder V2 16B"
+    provider: ollama
+    type: local
+    context_window: 16384
+    speed_tier: medium
+    cost_tier: free
+    strengths:
+      - coding
+      - debugging
+    language_specialties:
+      - python
+      - javascript
+      - java
+      - cpp
+    quality_rating: 7
+
+  ollama/codellama:13b:
+    display_name: "CodeLlama 13B"
+    provider: ollama
+    type: local
+    context_window: 16384
+    speed_tier: fast
+    cost_tier: free
+    strengths:
+      - coding
+      - completion
+    language_specialties:
+      - python
+      - cpp
+      - java
+    quality_rating: 5
+
+  # ── API Models ─────────────────────────────────────────────
+  openai/gpt-4o:
+    display_name: "GPT-4o"
+    provider: openai
+    type: api
+    context_window: 128000
+    speed_tier: fast
+    cost_tier: high
+    strengths:
+      - coding
+      - reasoning
+      - analysis
+      - planning
+      - review
+    language_specialties:
+      - python
+      - javascript
+      - typescript
+      - csharp
+      - java
+      - go
+      - rust
+    quality_rating: 9
+
+  openai/gpt-4o-mini:
+    display_name: "GPT-4o Mini"
+    provider: openai
+    type: api
+    context_window: 128000
+    speed_tier: fast
+    cost_tier: medium
+    strengths:
+      - coding
+      - testing
+    language_specialties:
+      - python
+      - javascript
+      - typescript
+    quality_rating: 7
+
+  anthropic/claude-sonnet:
+    display_name: "Claude Sonnet"
+    provider: anthropic
+    type: api
+    context_window: 200000
+    speed_tier: fast
+    cost_tier: high
+    strengths:
+      - coding
+      - reasoning
+      - analysis
+      - review
+      - security
+    language_specialties:
+      - python
+      - javascript
+      - typescript
+      - csharp
+      - java
+      - go
+      - rust
+    quality_rating: 10
+
+# ── Escalation Tiers ────────────────────────────────────────
+# Model Manager eskalasyon merdiveninde kullanir
+escalation_tiers:
+  - tier: 1
+    label: "Entry-level local"
+    models:
+      - ollama/codellama:13b
+      - ollama/qwen2.5-coder:14b
+  - tier: 2
+    label: "Mid-level local"
+    models:
+      - ollama/deepseek-coder-v2:16b
+      - ollama/deepseek-r1:14b
+  - tier: 3
+    label: "Top-level local"
+    models:
+      - ollama/qwen2.5-coder:32b
+  - tier: 4
+    label: "API models (last resort)"
+    models:
+      - openai/gpt-4o-mini
+      - openai/gpt-4o
+      - anthropic/claude-sonnet
+
+# ── Task Type → Recommended Models ──────────────────────────
+task_type_recommendations:
+  coding:
+    preferred:
+      - ollama/qwen2.5-coder:32b
+      - ollama/deepseek-coder-v2:16b
+    fallback:
+      - openai/gpt-4o
+  testing:
+    preferred:
+      - ollama/qwen2.5-coder:14b
+      - ollama/qwen2.5-coder:32b
+    fallback:
+      - openai/gpt-4o-mini
+  reviewing:
+    preferred:
+      - anthropic/claude-sonnet
+    fallback:
+      - openai/gpt-4o
+  planning:
+    preferred:
+      - ollama/deepseek-r1:14b
+    fallback:
+      - openai/gpt-4o
+  architecture:
+    preferred:
+      - ollama/qwen2.5-coder:32b
+      - ollama/deepseek-r1:14b
+    fallback:
+      - openai/gpt-4o
