@@ -28,6 +28,7 @@ class AgentConfig(BaseModel):
     provider: str = "ollama"
     description: str = ""
     parameters: LlmParameters = Field(default_factory=LlmParameters)
+    max_iterations: int = 10
     system_prompt: str = ""
     tools: list[str] = Field(default_factory=list)
 
