@@ -219,17 +219,88 @@ var workersCommand = new Command("workers", "Show worker pool status");
 workersCommand.SetHandler(async () =>
 {
     using var scope = host.Services.CreateScope();
-    var workerRepo = scope.ServiceProvider.GetRequiredService<ICoderWorkerRepository>();
+    var workerPoolSvc = scope.ServiceProvider.GetRequiredService<WorkerPoolService>();
 
-    var workers = await workerRepo.GetAllAsync();
-    if (workers.Count == 0)
+    var status = await workerPoolSvc.GetPoolStatusAsync();
+    if (status.TotalWorkers == 0)
     {
         AnsiConsole.MarkupLine("[dim]No workers registered.[/]");
         return;
     }
 
-    ConsoleOutput.WriteWorkersTable(workers);
+    AnsiConsole.MarkupLine($"[bold]Worker Pool[/]: {status.TotalWorkers} total " +
+        $"([green]{status.IdleCount} idle[/], [yellow]{status.WorkingCount} working[/], " +
+        $"[red]{status.OfflineCount} offline[/])\n");
+
+    ConsoleOutput.WriteWorkersTable(status.Workers);
 });
+
+// ── worker add ──────────────────────────────────────────────
+var workerAddCommand = new Command("add", "Add a new worker at runtime");
+var workerModelOption = new Option<string>("--model", "Model name (e.g., ollama/qwen2.5-coder:32b)") { IsRequired = true };
+var workerProviderOption = new Option<string>("--provider", () => "ollama", "Provider name");
+var workerNameOption = new Option<string?>("--name", "Worker name (auto-generated if not specified)");
+workerAddCommand.AddOption(workerModelOption);
+workerAddCommand.AddOption(workerProviderOption);
+workerAddCommand.AddOption(workerNameOption);
+
+workerAddCommand.SetHandler(async (string model, string provider, string? name) =>
+{
+    using var scope = host.Services.CreateScope();
+    var workerPoolSvc = scope.ServiceProvider.GetRequiredService<WorkerPoolService>();
+
+    var worker = await workerPoolSvc.AddWorkerAsync(model, provider, name);
+    ConsoleOutput.WriteSuccess($"Worker added: {worker.Name} ({worker.Model})");
+
+}, workerModelOption, workerProviderOption, workerNameOption);
+
+workersCommand.AddCommand(workerAddCommand);
+
+// ── worker remove ───────────────────────────────────────────
+var workerRemoveCommand = new Command("remove", "Remove a worker (graceful)");
+var workerRemoveNameArg = new Argument<string>("name", "Worker name (e.g., worker-c)");
+var forceOption = new Option<bool>("--force", "Force remove even if busy");
+workerRemoveCommand.AddArgument(workerRemoveNameArg);
+workerRemoveCommand.AddOption(forceOption);
+
+workerRemoveCommand.SetHandler(async (string name, bool force) =>
+{
+    using var scope = host.Services.CreateScope();
+    var workerPoolSvc = scope.ServiceProvider.GetRequiredService<WorkerPoolService>();
+
+    var removed = await workerPoolSvc.RemoveWorkerByNameAsync(name, force);
+    if (removed)
+        ConsoleOutput.WriteSuccess($"Worker '{name}' removed.");
+    else
+        AnsiConsole.MarkupLine($"[yellow]Worker '{Markup.Escape(name)}' is busy — marked for removal after current task.[/]");
+
+}, workerRemoveNameArg, forceOption);
+
+workersCommand.AddCommand(workerRemoveCommand);
+
+// ── config coders ───────────────────────────────────────────
+var configCommand = new Command("config", "Configuration commands");
+var codersConfigCommand = new Command("coders", "Configure worker pool template");
+var codersCountOption = new Option<int>("--count", () => 2, "Number of workers per template");
+var codersModelConfigOption = new Option<string>("--model", "Model name") { IsRequired = true };
+var codersProviderConfigOption = new Option<string>("--provider", () => "ollama", "Provider");
+codersConfigCommand.AddOption(codersCountOption);
+codersConfigCommand.AddOption(codersModelConfigOption);
+codersConfigCommand.AddOption(codersProviderConfigOption);
+
+codersConfigCommand.SetHandler(async (int count, string model, string provider) =>
+{
+    using var scope = host.Services.CreateScope();
+    var workerPoolSvc = scope.ServiceProvider.GetRequiredService<WorkerPoolService>();
+
+    var templates = new[] { new WorkerTemplate(count, model, provider) };
+    await workerPoolSvc.InitializeFromConfigAsync(templates);
+
+    ConsoleOutput.WriteSuccess($"Worker pool configured: {count}x {model} ({provider})");
+
+}, codersCountOption, codersModelConfigOption, codersProviderConfigOption);
+
+configCommand.AddCommand(codersConfigCommand);
 
 // ── logs ────────────────────────────────────────────────────
 var logsCommand = new Command("logs", "Show agent execution logs");
@@ -280,6 +351,7 @@ rootCommand.AddCommand(statusCommand);
 rootCommand.AddCommand(projectsCommand);
 rootCommand.AddCommand(runCommand);
 rootCommand.AddCommand(workersCommand);
+rootCommand.AddCommand(configCommand);
 rootCommand.AddCommand(logsCommand);
 
 return await rootCommand.InvokeAsync(args);
