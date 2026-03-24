@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="MediatR" Version="12.4.1" />
+    <PackageReference Include="Stateless" Version="5.16.0" />
   </ItemGroup>
 
   <ItemGroup>
