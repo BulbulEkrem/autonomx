@@ -1,5 +1,6 @@
 using AutoNomX.Domain.Interfaces;
 using AutoNomX.Infrastructure.EventBus;
+using AutoNomX.Infrastructure.Git;
 using AutoNomX.Infrastructure.Grpc;
 using AutoNomX.Infrastructure.Persistence;
 using AutoNomX.Infrastructure.Persistence.Repositories;
@@ -34,6 +35,12 @@ public static class DependencyInjection
         services.AddScoped<IAgentHistoryRepository, AgentHistoryRepository>();
         services.AddScoped<IAgentMetricsRepository, AgentMetricsRepository>();
         services.AddScoped<IProjectFileRepository, ProjectFileRepository>();
+        services.AddScoped<IChatSessionRepository, ChatSessionRepository>();
+        services.AddScoped<IChatMessageRepository, ChatMessageRepository>();
+        services.AddScoped<IChangeLogRepository, ChangeLogRepository>();
+
+        // Git Service
+        services.AddSingleton<IGitService, GitCliService>();
 
         // EventBus (PostgreSQL LISTEN/NOTIFY)
         services.AddSingleton<PostgresEventBus>();

@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\core\AutoNomX.Application\AutoNomX.Application.csproj" />
     <ProjectReference Include="..\..\core\AutoNomX.Domain\AutoNomX.Domain.csproj" />
+    <ProjectReference Include="..\..\core\AutoNomX.Infrastructure\AutoNomX.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

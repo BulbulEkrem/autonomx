@@ -23,10 +23,15 @@ public class OrchestratorService(
     IUnitOfWork unitOfWork,
     TaskBoardService taskBoard,
     WorkerPoolService workerPool,
+    IGitService gitService,
     IMediator mediator,
     ILogger<OrchestratorService> logger,
     ILogger<PipelineStateMachine> smLogger)
 {
+    private const string WorkspaceRoot = "workspace";
+
+    private string GetProjectPath(Guid projectId) =>
+        Path.Combine(WorkspaceRoot, $"project-{projectId.ToString()[..8]}");
     /// <summary>Start a new pipeline for a project.</summary>
     public async Task<PipelineRun> StartPipelineAsync(
         Guid projectId,
@@ -37,6 +42,20 @@ public class OrchestratorService(
             ?? throw new InvalidOperationException($"Project {projectId} not found");
 
         logger.LogInformation("Starting pipeline for project {ProjectId}: {Name}", projectId, project.Name);
+
+        // Initialize git repo for the project workspace
+        var projectPath = GetProjectPath(projectId);
+        try
+        {
+            await gitService.InitRepoAsync(projectPath, ct);
+            project.RepositoryPath = projectPath;
+            await projectRepo.UpdateAsync(project, ct);
+            logger.LogInformation("Git repo initialized at {Path}", projectPath);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Git init failed (non-fatal): {Message}", ex.Message);
+        }
 
         // Create state machine
         var sm = PipelineStateMachine.Create(projectId, pipelineRunRepo, unitOfWork, smLogger);
@@ -262,6 +281,9 @@ public class OrchestratorService(
 
         if (result.Success)
         {
+            // Git: commit scaffolding on main
+            await GitCommitSafe(sm.ProjectId, "feat: initial project scaffolding", ct);
+
             await sm.FireAsync(PipelineTrigger.ArchitectureReady);
             await ProcessStateAsync(sm, result.ResultJson, ct);
         }
@@ -341,8 +363,14 @@ public class OrchestratorService(
         CoderWorker worker,
         CancellationToken ct)
     {
+        var projectPath = GetProjectPath(sm.ProjectId);
+        var branchName = $"feature/T-{task.Id.ToString()[..8]}-{SanitizeBranchName(task.Title)}";
+
         try
         {
+            // Git: create feature branch for this task
+            await GitCreateBranchSafe(sm.ProjectId, branchName, ct);
+
             var result = await agentGateway.RunAgentAsync(
                 AgentType.Coder,
                 new AgentExecutionContext(
@@ -356,9 +384,17 @@ public class OrchestratorService(
                 ct);
 
             if (result.Success)
+            {
+                // Git: commit on feature branch
+                await GitCommitSafe(sm.ProjectId,
+                    $"feat: {task.Title}", ct);
+
                 await taskBoard.CompleteTaskAsync(task.Id, result.ResultJson, ct);
+            }
             else
+            {
                 await taskBoard.FailTaskAsync(task.Id, result.Error ?? "Unknown error", ct);
+            }
         }
         catch (Exception ex)
         {
@@ -367,8 +403,7 @@ public class OrchestratorService(
         }
 
         // After task completes, clean up offline workers
-        if (workerPool is not null)
-            await workerPool.CleanupOfflineWorkersAsync(ct);
+        await workerPool.CleanupOfflineWorkersAsync(ct);
     }
 
     private async Task RunTestingPhaseAsync(PipelineStateMachine sm, CancellationToken ct)
@@ -446,7 +481,9 @@ public class OrchestratorService(
                 var decisionStr = decision.GetString()?.ToUpperInvariant();
                 if (decisionStr == "APPROVE")
                 {
-                    // Check if all tasks are done
+                    // Git: merge approved task branches into main
+                    await MergeApprovedBranchesAsync(projectId, ct);
+
                     var allDone = await taskBoard.AreAllTasksCompletedAsync(projectId, ct);
                     return allDone ? PipelineTrigger.AllTasksCompleted : PipelineTrigger.ReviewApproved;
                 }
@@ -457,6 +494,48 @@ public class OrchestratorService(
         catch { /* fall through */ }
 
         return PipelineTrigger.ReviewApproved;
+    }
+
+    private async Task MergeApprovedBranchesAsync(Guid projectId, CancellationToken ct)
+    {
+        var projectPath = GetProjectPath(projectId);
+        var tasks = await taskRepo.GetByProjectIdAsync(projectId, ct);
+        var doneTasks = tasks.Where(t => t.Status == TaskItemStatus.Done && t.GitBranch is not null);
+
+        foreach (var task in doneTasks)
+        {
+            try
+            {
+                var mergeResult = await gitService.MergeBranchAsync(projectPath, task.GitBranch!, "main", ct);
+                if (mergeResult.HasConflicts)
+                {
+                    logger.LogWarning("Merge conflict for task {TaskId} branch {Branch}: {Files}",
+                        task.Id, task.GitBranch, string.Join(", ", mergeResult.ConflictFiles));
+
+                    // Send to architect for conflict resolution
+                    await agentGateway.RunAgentAsync(
+                        AgentType.Architect,
+                        new AgentExecutionContext(
+                            ExecutionId: Guid.NewGuid().ToString(),
+                            ProjectId: projectId.ToString(),
+                            ContextJson: JsonSerializer.Serialize(new
+                            {
+                                action = "resolve_conflict",
+                                branch = task.GitBranch,
+                                conflict_files = mergeResult.ConflictFiles,
+                            })),
+                        ct);
+                }
+                else
+                {
+                    logger.LogInformation("Merged {Branch} → main", task.GitBranch);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Merge failed for branch {Branch}", task.GitBranch);
+            }
+        }
     }
 
     private async Task PublishPipelineEventAsync(
@@ -480,6 +559,47 @@ public class OrchestratorService(
             sm.CurrentState.ToString(),
             sm.CurrentState.ToString(),
             sm.CurrentState == PipelineState.Completed), ct);
+    }
+
+    // ── Git Helpers ────────────────────────────────────────────
+
+    private async Task GitCommitSafe(Guid projectId, string message, CancellationToken ct)
+    {
+        try
+        {
+            var projectPath = GetProjectPath(projectId);
+            await gitService.CommitAllAsync(projectPath, message, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Git commit failed (non-fatal): {Message}", ex.Message);
+        }
+    }
+
+    private async Task GitCreateBranchSafe(Guid projectId, string branchName, CancellationToken ct)
+    {
+        try
+        {
+            var projectPath = GetProjectPath(projectId);
+            await gitService.CheckoutAsync(projectPath, "main", ct);
+            await gitService.CreateBranchAsync(projectPath, branchName, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Git branch creation failed (non-fatal): {Message}", ex.Message);
+        }
+    }
+
+    private static string SanitizeBranchName(string name)
+    {
+        var sanitized = name
+            .ToLowerInvariant()
+            .Replace(" ", "-")
+            .Replace("/", "-")
+            .Replace("\\", "-");
+
+        // Limit length
+        return sanitized.Length > 40 ? sanitized[..40] : sanitized;
     }
 }
 

@@ -111,7 +111,29 @@ statusCommand.SetHandler(async (string projectId) =>
     if (project is not null)
     {
         AnsiConsole.MarkupLine($"[bold]Project:[/] {Markup.Escape(project.Name)}");
-        AnsiConsole.MarkupLine($"[dim]Status: {project.Status}[/]\n");
+        AnsiConsole.MarkupLine($"[dim]Status: {project.Status}[/]");
+
+        // Git status
+        if (project.RepositoryPath is not null)
+        {
+            try
+            {
+                var gitSvc = scope.ServiceProvider.GetRequiredService<IGitService>();
+                var branchStatus = await gitSvc.GetBranchStatusAsync(project.RepositoryPath);
+                AnsiConsole.MarkupLine($"[dim]Git: {branchStatus.CurrentBranch} ({branchStatus.ChangedFiles.Count} changed)[/]");
+
+                var logs = await gitSvc.GetLogAsync(project.RepositoryPath, 3);
+                if (logs.Count > 0)
+                {
+                    AnsiConsole.MarkupLine("[dim]Recent commits:[/]");
+                    foreach (var log in logs)
+                        AnsiConsole.MarkupLine($"  [dim]{log.Hash[..7]} {Markup.Escape(log.Message)}[/]");
+                }
+            }
+            catch { /* git not available */ }
+        }
+
+        AnsiConsole.WriteLine();
 
         var activePipeline = await pipelineRepo.GetActiveByProjectIdAsync(id);
         if (activePipeline is not null)
@@ -345,6 +367,88 @@ logsCommand.SetHandler(async (string projectId, string? agentName) =>
 
 }, logsProjectArg, logsAgentOption);
 
+// ── chat ───────────────────────────────────────────────────
+var chatCommand = new Command("chat", "Interactive chat with Product Owner agent");
+var chatProjectArg = new Argument<string>("project-id", "Project ID");
+chatCommand.AddArgument(chatProjectArg);
+
+chatCommand.SetHandler(async (string projectId) =>
+{
+    if (!Guid.TryParse(projectId, out var id))
+    {
+        ConsoleOutput.WriteError("Invalid project ID format.");
+        return;
+    }
+
+    using var scope = host.Services.CreateScope();
+    var chatService = scope.ServiceProvider.GetRequiredService<ChatService>();
+
+    var session = await chatService.StartChatAsync(id);
+    AnsiConsole.MarkupLine("[bold blue]Product Owner Chat[/]");
+    AnsiConsole.MarkupLine($"[dim]Session: {session.Id}[/]");
+    AnsiConsole.MarkupLine("[dim]Type 'exit' or 'quit' to end the chat.[/]\n");
+
+    while (true)
+    {
+        var input = AnsiConsole.Prompt(
+            new TextPrompt<string>("[green bold]You>[/] ")
+                .AllowEmpty());
+
+        if (string.IsNullOrWhiteSpace(input)) continue;
+        if (input.Equals("exit", StringComparison.OrdinalIgnoreCase) ||
+            input.Equals("quit", StringComparison.OrdinalIgnoreCase))
+        {
+            await chatService.EndChatAsync(session.Id);
+            AnsiConsole.MarkupLine("[dim]Chat ended.[/]");
+            break;
+        }
+
+        ChatResponse response;
+        try
+        {
+            response = await ConsoleOutput.WithSpinnerAsync("PO is thinking...", async () =>
+                await chatService.SendMessageAsync(session.Id, input));
+        }
+        catch (Exception ex)
+        {
+            ConsoleOutput.WriteError($"Chat error: {ex.Message}");
+            continue;
+        }
+
+        // Display PO response
+        AnsiConsole.MarkupLine($"\n[blue bold]PO>[/] {Markup.Escape(response.Message)}\n");
+
+        // If change proposed, ask for approval
+        if (response.ChangeType is not null)
+        {
+            AnsiConsole.MarkupLine($"[yellow]Change proposed: {Markup.Escape(response.ChangeType)}[/]");
+            var confirm = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title("[yellow]Approve this change?[/]")
+                    .AddChoices("Approve", "Reject"));
+
+            var messages = await chatService.GetChatHistoryAsync(id);
+            var lastAssistant = messages.LastOrDefault(m => m.Role == "assistant" && m.ChangeType is not null);
+
+            if (confirm == "Approve" && lastAssistant is not null)
+            {
+                var result = await chatService.ApproveChangeAsync(session.Id, lastAssistant.Id);
+                if (result.Success)
+                    ConsoleOutput.WriteSuccess(result.Message);
+                else
+                    ConsoleOutput.WriteError(result.Message);
+            }
+            else if (lastAssistant is not null)
+            {
+                await chatService.RejectChangeAsync(session.Id, lastAssistant.Id);
+                AnsiConsole.MarkupLine("[dim]Change rejected.[/]");
+            }
+            AnsiConsole.WriteLine();
+        }
+    }
+
+}, chatProjectArg);
+
 // ── Register commands ───────────────────────────────────────
 rootCommand.AddCommand(newCommand);
 rootCommand.AddCommand(statusCommand);
@@ -352,6 +456,7 @@ rootCommand.AddCommand(projectsCommand);
 rootCommand.AddCommand(runCommand);
 rootCommand.AddCommand(workersCommand);
 rootCommand.AddCommand(configCommand);
+rootCommand.AddCommand(chatCommand);
 rootCommand.AddCommand(logsCommand);
 
 return await rootCommand.InvokeAsync(args);

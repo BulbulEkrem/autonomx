@@ -19,4 +19,5 @@ public class Project : BaseEntity
     public List<PipelineRun> PipelineRuns { get; set; } = [];
     public List<ProjectFile> Files { get; set; } = [];
     public List<ChangeLog> ChangeLogs { get; set; } = [];
+    public List<ChatSession> ChatSessions { get; set; } = [];
 }
