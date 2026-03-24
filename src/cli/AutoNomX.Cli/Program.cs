@@ -242,6 +242,7 @@ workersCommand.SetHandler(async () =>
 {
     using var scope = host.Services.CreateScope();
     var workerPoolSvc = scope.ServiceProvider.GetRequiredService<WorkerPoolService>();
+    var metricsSvc = scope.ServiceProvider.GetRequiredService<MetricsService>();
 
     var status = await workerPoolSvc.GetPoolStatusAsync();
     if (status.TotalWorkers == 0)
@@ -254,7 +255,36 @@ workersCommand.SetHandler(async () =>
         $"([green]{status.IdleCount} idle[/], [yellow]{status.WorkingCount} working[/], " +
         $"[red]{status.OfflineCount} offline[/])\n");
 
-    ConsoleOutput.WriteWorkersTable(status.Workers);
+    // Enhanced table with performance data
+    var table = new Table()
+        .Border(TableBorder.Rounded)
+        .AddColumn("Name")
+        .AddColumn("Model")
+        .AddColumn("Status")
+        .AddColumn("Tasks")
+        .AddColumn("Success %")
+        .AddColumn("Avg Score");
+
+    foreach (var worker in status.Workers)
+    {
+        var perf = await metricsSvc.GetWorkerPerformanceAsync(worker.Id);
+        var statusColor = worker.Status switch
+        {
+            WorkerStatus.Idle => "green",
+            WorkerStatus.Working => "yellow",
+            _ => "red",
+        };
+
+        table.AddRow(
+            Markup.Escape(worker.Name),
+            Markup.Escape(worker.Model),
+            $"[{statusColor}]{worker.Status}[/]",
+            perf.TotalTasks.ToString(),
+            perf.TotalTasks > 0 ? $"{perf.SuccessRate:P0}" : "-",
+            perf.TotalTasks > 0 ? $"{perf.AvgScore:F1}" : "-");
+    }
+
+    AnsiConsole.Write(table);
 });
 
 // ── worker add ──────────────────────────────────────────────
@@ -449,6 +479,81 @@ chatCommand.SetHandler(async (string projectId) =>
 
 }, chatProjectArg);
 
+// ── metrics ────────────────────────────────────────────────
+var metricsCommand = new Command("metrics", "Show performance metrics report");
+var metricsProjectArg = new Argument<string?>("project-id", () => null, "Project ID (optional)");
+metricsCommand.AddArgument(metricsProjectArg);
+
+metricsCommand.SetHandler(async (string? projectId) =>
+{
+    using var scope = host.Services.CreateScope();
+    var metricsSvc = scope.ServiceProvider.GetRequiredService<MetricsService>();
+
+    AnsiConsole.MarkupLine("[bold]Performance Metrics Report[/]\n");
+
+    // Worker performances
+    var performances = await metricsSvc.GetAllWorkerPerformancesAsync();
+    if (performances.Count == 0)
+    {
+        AnsiConsole.MarkupLine("[dim]No metrics recorded yet.[/]");
+        return;
+    }
+
+    var workerTable = new Table()
+        .Border(TableBorder.Rounded)
+        .AddColumn("Worker")
+        .AddColumn("Model")
+        .AddColumn("Tasks")
+        .AddColumn("Success %")
+        .AddColumn("Avg Iterations")
+        .AddColumn("Avg Tokens")
+        .AddColumn("Avg Score");
+
+    foreach (var perf in performances)
+    {
+        var successColor = perf.SuccessRate >= 0.8 ? "green" : perf.SuccessRate >= 0.5 ? "yellow" : "red";
+        workerTable.AddRow(
+            Markup.Escape(perf.WorkerName),
+            Markup.Escape(perf.CurrentModel),
+            perf.TotalTasks.ToString(),
+            $"[{successColor}]{perf.SuccessRate:P0}[/]",
+            $"{perf.AvgIterations:F1}",
+            $"{perf.AvgTokensPerTask:N0}",
+            $"{perf.AvgScore:F1}/10");
+    }
+
+    AnsiConsole.Write(workerTable);
+    AnsiConsole.WriteLine();
+
+    // Model comparison
+    var models = performances.Select(p => p.CurrentModel).Distinct().ToList();
+    if (models.Count > 1)
+    {
+        AnsiConsole.MarkupLine("[bold]Model Comparison[/]\n");
+        var modelTable = new Table()
+            .Border(TableBorder.Rounded)
+            .AddColumn("Model")
+            .AddColumn("Workers")
+            .AddColumn("Tasks")
+            .AddColumn("Success %")
+            .AddColumn("Avg Score");
+
+        foreach (var model in models)
+        {
+            var modelPerf = await metricsSvc.GetModelPerformanceAsync(model);
+            modelTable.AddRow(
+                Markup.Escape(model),
+                modelPerf.WorkerCount.ToString(),
+                modelPerf.TotalTasks.ToString(),
+                $"{modelPerf.SuccessRate:P0}",
+                $"{modelPerf.AvgScore:F1}/10");
+        }
+
+        AnsiConsole.Write(modelTable);
+    }
+
+}, metricsProjectArg);
+
 // ── Register commands ───────────────────────────────────────
 rootCommand.AddCommand(newCommand);
 rootCommand.AddCommand(statusCommand);
@@ -457,6 +562,7 @@ rootCommand.AddCommand(runCommand);
 rootCommand.AddCommand(workersCommand);
 rootCommand.AddCommand(configCommand);
 rootCommand.AddCommand(chatCommand);
+rootCommand.AddCommand(metricsCommand);
 rootCommand.AddCommand(logsCommand);
 
 return await rootCommand.InvokeAsync(args);
