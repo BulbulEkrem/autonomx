@@ -77,8 +77,12 @@ async def serve() -> None:
         shutdown_event.set()
 
     loop = asyncio.get_running_loop()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(sig, _signal_handler)
+    try:
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            loop.add_signal_handler(sig, _signal_handler)
+    except NotImplementedError:
+        # Windows doesn't support add_signal_handler
+        pass
 
     logger.info("Agent runtime ready. Waiting for requests...")
     await shutdown_event.wait()
