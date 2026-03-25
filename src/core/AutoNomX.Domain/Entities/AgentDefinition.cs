@@ -17,5 +17,4 @@ public class AgentDefinition : BaseEntity
 
     // Navigation
     public List<AgentHistory> Histories { get; set; } = [];
-    public List<AgentMetrics> Metrics { get; set; } = [];
 }

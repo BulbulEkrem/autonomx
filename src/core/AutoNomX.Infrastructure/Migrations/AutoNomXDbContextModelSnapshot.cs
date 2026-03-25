@@ -583,16 +583,7 @@ namespace AutoNomX.Infrastructure.Migrations
                     b.Navigation("Task");
                 });
 
-            modelBuilder.Entity("AutoNomX.Domain.Entities.AgentMetrics", b =>
-                {
-                    b.HasOne("AutoNomX.Domain.Entities.AgentDefinition", "Agent")
-                        .WithMany("Metrics")
-                        .HasForeignKey("AgentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Agent");
-                });
+            // AgentMetrics.AgentId has no FK — it can reference agents or coder_workers
 
             modelBuilder.Entity("AutoNomX.Domain.Entities.ChangeLog", b =>
                 {
@@ -678,8 +669,6 @@ namespace AutoNomX.Infrastructure.Migrations
             modelBuilder.Entity("AutoNomX.Domain.Entities.AgentDefinition", b =>
                 {
                     b.Navigation("Histories");
-
-                    b.Navigation("Metrics");
                 });
 
             modelBuilder.Entity("AutoNomX.Domain.Entities.ChatSession", b =>
