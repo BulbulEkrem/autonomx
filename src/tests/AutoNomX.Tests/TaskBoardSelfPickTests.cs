@@ -5,6 +5,7 @@ using AutoNomX.Domain.Interfaces;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Xunit;
 
 namespace AutoNomX.Tests;
 

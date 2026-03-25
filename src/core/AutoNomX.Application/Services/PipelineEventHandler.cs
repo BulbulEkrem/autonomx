@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AutoNomX.Domain;
 using AutoNomX.Domain.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -13,7 +14,7 @@ namespace AutoNomX.Application.Services;
 /// </summary>
 public class PipelineEventHandler(
     IEventBus eventBus,
-    OrchestratorService orchestrator,
+    IServiceScopeFactory scopeFactory,
     ILogger<PipelineEventHandler> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -71,6 +72,8 @@ public class PipelineEventHandler(
                     ResultJson: resultJson,
                     Error: error);
 
+                using var scope = scopeFactory.CreateScope();
+                var orchestrator = scope.ServiceProvider.GetRequiredService<OrchestratorService>();
                 await orchestrator.HandleAgentResultAsync(pipelineRunId, agentType, result);
             }
         }

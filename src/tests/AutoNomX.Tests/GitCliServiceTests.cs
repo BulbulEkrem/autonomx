@@ -2,6 +2,7 @@ using AutoNomX.Domain.Interfaces;
 using AutoNomX.Infrastructure.Git;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Xunit;
 
 namespace AutoNomX.Tests;
 

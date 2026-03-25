@@ -4,6 +4,7 @@ using AutoNomX.Domain.Entities;
 using AutoNomX.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using Xunit;
 
 namespace AutoNomX.Tests;
 
