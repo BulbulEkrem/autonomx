@@ -110,6 +110,28 @@ class LLMGateway:
             list(self.providers.keys()),
         )
 
+    def _resolve_model_and_provider(
+        self, model: str
+    ) -> tuple[str, str, ProviderConfig | None]:
+        """Resolve model name and provider for LiteLLM.
+
+        For lm_studio provider, rewrites model to openai/ prefix since
+        LM Studio exposes an OpenAI-compatible API.
+
+        Returns:
+            Tuple of (litellm_model_name, provider_name, provider_config)
+        """
+        provider_name = self._extract_provider(model)
+        provider = self.providers.get(provider_name)
+
+        litellm_model = model
+        if provider_name == "lm_studio":
+            # Strip lm_studio/ prefix and re-add as openai/ for LiteLLM
+            actual_model = model.split("/", 1)[1] if "/" in model else model
+            litellm_model = f"openai/{actual_model}"
+
+        return litellm_model, provider_name, provider
+
     async def completion(
         self,
         model: str,
@@ -129,12 +151,11 @@ class LLMGateway:
             response_format: Optional response format (e.g., {"type": "json_object"})
             **kwargs: Additional LiteLLM parameters
         """
-        provider_name = self._extract_provider(model)
-        provider = self.providers.get(provider_name)
+        litellm_model, provider_name, provider = self._resolve_model_and_provider(model)
 
         # Inject API key if available
         call_kwargs: dict[str, Any] = {
-            "model": model,
+            "model": litellm_model,
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
@@ -206,11 +227,10 @@ class LLMGateway:
             async for chunk in gateway.stream(model, messages):
                 print(chunk.content, end="")
         """
-        provider_name = self._extract_provider(model)
-        provider = self.providers.get(provider_name)
+        litellm_model, provider_name, provider = self._resolve_model_and_provider(model)
 
         call_kwargs: dict[str, Any] = {
-            "model": model,
+            "model": litellm_model,
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
@@ -223,7 +243,7 @@ class LLMGateway:
         if provider and provider.base_url and provider.type == "local":
             call_kwargs["api_base"] = provider.base_url
 
-        logger.info("LLM stream: model=%s, messages=%d", model, len(messages))
+        logger.info("LLM stream: model=%s, messages=%d", litellm_model, len(messages))
 
         response = await litellm.acompletion(**call_kwargs)
 

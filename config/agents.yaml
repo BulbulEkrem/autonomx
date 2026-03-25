@@ -1,11 +1,12 @@
 # ── AutoNomX Agent Configuration ─────────────────────────────
 # Agent tanımları ve varsayılan LLM modelleri
+# Tüm agentlar LM Studio üzerinden çalışır (localhost:1234)
 
 agents:
   product_owner:
     type: product_owner
-    model: "deepseek-r1-14b-lmstudio"
-    provider: ollama
+    model: "lm_studio/qwen3.5-27b-claude-4.6-opus-reasoning-distilled-v2"
+    provider: lm_studio
     description: "İstek analizi, user story oluşturma, kullanıcı chat"
     parameters:
       temperature: 0.7
@@ -13,8 +14,8 @@ agents:
 
   planner:
     type: planner
-    model: "deepseek-r1-14b-lmstudio"
-    provider: ollama
+    model: "lm_studio/qwen3.5-27b-claude-4.6-opus-reasoning-distilled-v2"
+    provider: lm_studio
     description: "User story → teknik task dönüşümü"
     parameters:
       temperature: 0.5
@@ -22,8 +23,8 @@ agents:
 
   architect:
     type: architect
-    model: "deepseek-r1-14b-lmstudio"
-    provider: ollama
+    model: "lm_studio/qwen3.5-27b-claude-4.6-opus-reasoning-distilled-v2"
+    provider: lm_studio
     description: "Proje yapısı, scaffolding, sprint yönetimi"
     parameters:
       temperature: 0.3
@@ -31,8 +32,8 @@ agents:
 
   model_manager:
     type: model_manager
-    model: "deepseek-r1-14b-lmstudio"
-    provider: ollama
+    model: "lm_studio/qwen3.5-27b-claude-4.6-opus-reasoning-distilled-v2"
+    provider: lm_studio
     description: "LLM atama, performans takibi, model optimizasyonu"
     parameters:
       temperature: 0.3
@@ -40,8 +41,8 @@ agents:
 
   tester:
     type: tester
-    model: "deepseek-r1-14b-lmstudio"
-    provider: ollama
+    model: "lm_studio/qwen/qwen3-coder-next"
+    provider: lm_studio
     description: "Test yazma ve çalıştırma"
     parameters:
       temperature: 0.2
@@ -49,8 +50,8 @@ agents:
 
   reviewer:
     type: reviewer
-    model: "deepseek-r1-14b-lmstudio"
-    provider: anthropic
+    model: "lm_studio/qwen3.5-27b-claude-4.6-opus-reasoning-distilled-v2"
+    provider: lm_studio
     description: "Kod kalitesi, güvenlik, onay"
     parameters:
       temperature: 0.2
@@ -60,11 +61,11 @@ agents:
 coder_pool:
   workers:
     - count: 2
-      model: "deepseek-r1-14b-lmstudio"
-      provider: ollama
+      model: "lm_studio/qwen/qwen3-coder-next"
+      provider: lm_studio
     - count: 1
-      model: "ollama/deepseek-coder-v2:16b"
-      provider: ollama
+      model: "lm_studio/qwen3.5-27b-claude-4.6-opus-reasoning-distilled-v2"
+      provider: lm_studio
 
   # Worker davranış ayarları
   settings:
