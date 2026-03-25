@@ -31,6 +31,7 @@ public class OrchestratorService(
     ILogger<PipelineStateMachine> smLogger)
 {
     private const string WorkspaceRoot = "workspace";
+    private const int MaxPipelineIterations = 20;
 
     private string GetProjectPath(Guid projectId) =>
         Path.Combine(WorkspaceRoot, $"project-{projectId.ToString()[..8]}");
@@ -83,6 +84,27 @@ public class OrchestratorService(
     {
         var state = sm.CurrentState;
         logger.LogInformation("Processing state {State} for pipeline {Id}", state, sm.PipelineRunId);
+
+        // Safety net: force-stop if pipeline exceeds max iterations
+        var run = sm.GetPipelineRun();
+        if (run.CurrentIteration > MaxPipelineIterations
+            && state is not PipelineState.Completed and not PipelineState.Failed)
+        {
+            logger.LogWarning(
+                "Pipeline {Id} exceeded max iterations ({Max}), forcing completion",
+                sm.PipelineRunId, MaxPipelineIterations);
+            if (sm.CanFire(PipelineTrigger.AllTasksCompleted))
+            {
+                await sm.FireAsync(PipelineTrigger.AllTasksCompleted);
+                await ProcessStateAsync(sm, ct: ct);
+            }
+            else if (sm.CanFire(PipelineTrigger.Error))
+            {
+                run.ErrorMessage = $"Pipeline exceeded maximum iterations ({MaxPipelineIterations})";
+                await sm.FireAsync(PipelineTrigger.Error);
+            }
+            return;
+        }
 
         try
         {
@@ -258,6 +280,9 @@ public class OrchestratorService(
 
         if (plannerResult.Success)
         {
+            // Persist tasks from planner output to DB so the pipeline can track completion
+            await PersistPlannerTasksAsync(sm.ProjectId, plannerResult.ResultJson, ct);
+
             await sm.FireAsync(PipelineTrigger.PlanReady);
             await ProcessStateAsync(sm, plannerResult.ResultJson, ct);
         }
@@ -613,7 +638,9 @@ public class OrchestratorService(
         }
         catch { /* fall through */ }
 
-        return PipelineTrigger.ReviewApproved;
+        // Fallback: check if all tasks are done before defaulting to another loop iteration
+        var fallbackAllDone = await taskBoard.AreAllTasksCompletedAsync(projectId, ct);
+        return fallbackAllDone ? PipelineTrigger.AllTasksCompleted : PipelineTrigger.ReviewApproved;
     }
 
     private async Task MergeApprovedBranchesAsync(Guid projectId, CancellationToken ct)
@@ -679,6 +706,83 @@ public class OrchestratorService(
             sm.CurrentState.ToString(),
             sm.CurrentState.ToString(),
             sm.CurrentState == PipelineState.Completed), ct);
+    }
+
+    // ── Task Persistence ──────────────────────────────────────
+
+    private async Task PersistPlannerTasksAsync(
+        Guid projectId,
+        string plannerResultJson,
+        CancellationToken ct)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(plannerResultJson);
+            var root = doc.RootElement;
+
+            if (!root.TryGetProperty("tasks", out var tasksElement))
+                return;
+
+            var taskItems = new List<TaskItem>();
+            foreach (var taskEl in tasksElement.EnumerateArray())
+            {
+                var title = taskEl.TryGetProperty("title", out var t) ? t.GetString() ?? "Untitled" : "Untitled";
+                var description = taskEl.TryGetProperty("description", out var d) ? d.GetString() : null;
+
+                var deps = new List<string>();
+                if (taskEl.TryGetProperty("dependencies", out var depsEl))
+                {
+                    foreach (var dep in depsEl.EnumerateArray())
+                    {
+                        var depStr = dep.GetString();
+                        if (depStr is not null) deps.Add(depStr);
+                    }
+                }
+
+                var filesToCreate = new List<string>();
+                if (taskEl.TryGetProperty("files_to_create", out var filesEl))
+                {
+                    foreach (var f in filesEl.EnumerateArray())
+                    {
+                        var fStr = f.GetString();
+                        if (fStr is not null) filesToCreate.Add(fStr);
+                    }
+                }
+
+                var priority = TaskItemPriority.Should;
+                if (taskEl.TryGetProperty("priority", out var pEl))
+                {
+                    var pStr = pEl.GetString()?.ToUpperInvariant();
+                    priority = pStr switch
+                    {
+                        "MUST" => TaskItemPriority.Must,
+                        "COULD" => TaskItemPriority.Could,
+                        _ => TaskItemPriority.Should,
+                    };
+                }
+
+                taskItems.Add(new TaskItem
+                {
+                    Title = title,
+                    Description = description,
+                    Priority = priority,
+                    Dependencies = deps,
+                    FilesTouched = filesToCreate,
+                });
+            }
+
+            if (taskItems.Count > 0)
+            {
+                await taskBoard.InitializeBoardAsync(projectId, taskItems, ct);
+                logger.LogInformation(
+                    "Persisted {Count} tasks from planner output for project {ProjectId}",
+                    taskItems.Count, projectId);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to persist planner tasks (non-fatal): {Message}", ex.Message);
+        }
     }
 
     // ── Git Helpers ────────────────────────────────────────────

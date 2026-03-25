@@ -57,7 +57,7 @@ pipeline:
 
   # Pipeline ayarları
   settings:
-    max_iterations: 50
+    max_iterations: 20
     timeout_minutes: 480
     git_workflow:
       branch_pattern: "feature/{task_id}-{short_description}"
