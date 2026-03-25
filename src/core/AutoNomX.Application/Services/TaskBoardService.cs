@@ -242,13 +242,15 @@ public class TaskBoardService(
             RevisionCount: tasks.Count(t => t.Status == TaskItemStatus.Revision));
     }
 
-    /// <summary>Check if all tasks for a project are completed.</summary>
+    /// <summary>Check if all tasks for a project are completed (or no tasks exist).</summary>
     public async Task<bool> AreAllTasksCompletedAsync(
         Guid projectId,
         CancellationToken ct = default)
     {
         var tasks = await taskRepo.GetByProjectIdAsync(projectId, ct);
-        return tasks.Count > 0 && tasks.All(t => t.Status == TaskItemStatus.Done);
+        // If no tasks exist, consider the pipeline complete to avoid infinite loops
+        if (tasks.Count == 0) return true;
+        return tasks.All(t => t.Status == TaskItemStatus.Done);
     }
 
     /// <summary>Check if all coding tasks are either Done or Failed (no InProgress/Ready).</summary>

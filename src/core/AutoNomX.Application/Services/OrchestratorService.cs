@@ -258,6 +258,9 @@ public class OrchestratorService(
 
         if (plannerResult.Success)
         {
+            // Parse planner output and initialize task board
+            await InitializeTaskBoardFromPlannerAsync(sm.ProjectId, plannerResult.ResultJson, ct);
+
             await sm.FireAsync(PipelineTrigger.PlanReady);
             await ProcessStateAsync(sm, plannerResult.ResultJson, ct);
         }
@@ -679,6 +682,97 @@ public class OrchestratorService(
             sm.CurrentState.ToString(),
             sm.CurrentState.ToString(),
             sm.CurrentState == PipelineState.Completed), ct);
+    }
+
+    // ── Task Board Initialization ─────────────────────────────
+
+    private async Task InitializeTaskBoardFromPlannerAsync(
+        Guid projectId,
+        string plannerJson,
+        CancellationToken ct)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(plannerJson);
+            var root = doc.RootElement;
+
+            if (!root.TryGetProperty("tasks", out var tasksArray))
+            {
+                logger.LogWarning("Planner output has no 'tasks' array");
+                return;
+            }
+
+            var tasks = new List<TaskItem>();
+            foreach (var taskEl in tasksArray.EnumerateArray())
+            {
+                var title = taskEl.TryGetProperty("title", out var t) ? t.GetString() ?? "Untitled" : "Untitled";
+                var description = taskEl.TryGetProperty("description", out var d) ? d.GetString() : null;
+
+                var priority = TaskItemPriority.Should;
+                if (taskEl.TryGetProperty("priority", out var p))
+                {
+                    var pStr = p.GetString()?.ToLowerInvariant();
+                    priority = pStr switch
+                    {
+                        "must" => TaskItemPriority.Must,
+                        "should" => TaskItemPriority.Should,
+                        "could" => TaskItemPriority.Could,
+                        _ => TaskItemPriority.Should
+                    };
+                }
+
+                var dependencies = new List<string>();
+                if (taskEl.TryGetProperty("dependencies", out var deps))
+                {
+                    foreach (var dep in deps.EnumerateArray())
+                    {
+                        var depStr = dep.GetString();
+                        if (depStr is not null) dependencies.Add(depStr);
+                    }
+                }
+
+                var filesTouched = new List<string>();
+                if (taskEl.TryGetProperty("files_to_create", out var ftc))
+                {
+                    foreach (var f in ftc.EnumerateArray())
+                    {
+                        var fStr = f.GetString();
+                        if (fStr is not null) filesTouched.Add(fStr);
+                    }
+                }
+                if (taskEl.TryGetProperty("files_to_modify", out var ftm))
+                {
+                    foreach (var f in ftm.EnumerateArray())
+                    {
+                        var fStr = f.GetString();
+                        if (fStr is not null) filesTouched.Add(fStr);
+                    }
+                }
+
+                tasks.Add(new TaskItem
+                {
+                    Title = title,
+                    Description = description,
+                    Priority = priority,
+                    Dependencies = dependencies,
+                    FilesTouched = filesTouched,
+                });
+            }
+
+            if (tasks.Count > 0)
+            {
+                await taskBoard.InitializeBoardAsync(projectId, tasks, ct);
+                logger.LogInformation("Initialized task board with {Count} tasks from planner output", tasks.Count);
+            }
+            else
+            {
+                logger.LogWarning("Planner output contained empty tasks array");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to parse planner output for task board initialization");
+        }
     }
 
     // ── Git Helpers ────────────────────────────────────────────

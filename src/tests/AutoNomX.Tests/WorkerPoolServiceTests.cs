@@ -2,7 +2,6 @@ using AutoNomX.Application.Services;
 using AutoNomX.Domain;
 using AutoNomX.Domain.Entities;
 using AutoNomX.Domain.Interfaces;
-using MediatR;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -13,13 +12,12 @@ public class WorkerPoolServiceTests
 {
     private readonly ICoderWorkerRepository _workerRepo = Substitute.For<ICoderWorkerRepository>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-    private readonly IMediator _mediator = Substitute.For<IMediator>();
     private readonly ILogger<WorkerPoolService> _logger = Substitute.For<ILogger<WorkerPoolService>>();
     private readonly WorkerPoolService _sut;
 
     public WorkerPoolServiceTests()
     {
-        _sut = new WorkerPoolService(_workerRepo, _unitOfWork, _mediator, _logger);
+        _sut = new WorkerPoolService(_workerRepo, _unitOfWork, _logger);
     }
 
     [Fact]
