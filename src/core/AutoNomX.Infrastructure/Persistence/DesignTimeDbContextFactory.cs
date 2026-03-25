@@ -7,9 +7,14 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<AutoNomXDb
 {
     public AutoNomXDbContext CreateDbContext(string[] args)
     {
+        var dataSourceBuilder = new Npgsql.NpgsqlDataSourceBuilder(
+            "Host=localhost;Port=5432;Database=autonomx;Username=autonomx;Password=autonomx_dev");
+        dataSourceBuilder.EnableDynamicJson();
+        var dataSource = dataSourceBuilder.Build();
+
         var optionsBuilder = new DbContextOptionsBuilder<AutoNomXDbContext>();
         optionsBuilder.UseNpgsql(
-            "Host=localhost;Port=5432;Database=autonomx;Username=autonomx;Password=autonomx_dev",
+            dataSource,
             b => b.MigrationsAssembly(typeof(AutoNomXDbContext).Assembly.FullName));
 
         return new AutoNomXDbContext(optionsBuilder.Options);

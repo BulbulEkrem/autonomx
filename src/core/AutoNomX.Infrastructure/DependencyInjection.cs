@@ -17,9 +17,16 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         // PostgreSQL + EF Core
+        var connectionString = configuration.GetConnectionString("DefaultConnection")
+            ?? "Host=localhost;Port=5432;Database=autonomx;Username=autonomx;Password=autonomx_dev";
+
+        var dataSourceBuilder = new Npgsql.NpgsqlDataSourceBuilder(connectionString);
+        dataSourceBuilder.EnableDynamicJson();
+        var dataSource = dataSourceBuilder.Build();
+
         services.AddDbContext<AutoNomXDbContext>(options =>
             options.UseNpgsql(
-                configuration.GetConnectionString("DefaultConnection"),
+                dataSource,
                 npgsqlOptions => npgsqlOptions.MigrationsAssembly(typeof(AutoNomXDbContext).Assembly.FullName)
             ));
 
