@@ -3,19 +3,61 @@
 # Her model icin: strengths, language_specialties, context_window, speed_tier, cost_tier
 
 models:
-  deepseek-r1-14b-lmstudio:
-      provider: lm_studio
-      model: "local"  # LM Studio'daki model adı ne ise o
-      capabilities: [reasoning, code]
-      tier: 1
-  # ── Local Models (Ollama) ──────────────────────────────────
+  # ── LM Studio Models (Primary) ───────────────────────────────
+  lm_studio/qwen/qwen3-coder-next:
+    display_name: "Qwen3 Coder Next"
+    provider: lm_studio
+    type: local
+    context_window: 32768
+    speed_tier: fast
+    cost_tier: free
+    strengths:
+      - coding
+      - debugging
+      - testing
+      - refactoring
+    language_specialties:
+      - python
+      - javascript
+      - typescript
+      - csharp
+      - java
+      - go
+      - rust
+    quality_rating: 9
+
+  lm_studio/qwen3.5-27b-claude-4.6-opus-reasoning-distilled-v2:
+    display_name: "Qwen3.5 27B Reasoning Distilled"
+    provider: lm_studio
+    type: local
+    context_window: 32768
+    speed_tier: medium
+    cost_tier: free
+    strengths:
+      - reasoning
+      - analysis
+      - planning
+      - coding
+      - review
+      - architecture
+    language_specialties:
+      - python
+      - javascript
+      - typescript
+      - csharp
+      - java
+      - go
+      - rust
+    quality_rating: 9
+
+  # ── Local Models (Ollama - Backup) ────────────────────────────
   ollama/qwen2.5-coder:32b:
     display_name: "Qwen 2.5 Coder 32B"
     provider: ollama
     type: local
     context_window: 32768
-    speed_tier: slow        # slow | medium | fast
-    cost_tier: free         # free | low | medium | high
+    speed_tier: slow
+    cost_tier: free
     strengths:
       - coding
       - reasoning
@@ -28,7 +70,7 @@ models:
       - csharp
       - java
       - go
-    quality_rating: 9       # 1-10
+    quality_rating: 9
 
   ollama/qwen2.5-coder:14b:
     display_name: "Qwen 2.5 Coder 14B"
@@ -162,18 +204,20 @@ models:
 # Model Manager eskalasyon merdiveninde kullanir
 escalation_tiers:
   - tier: 1
-    label: "Entry-level local"
+    label: "LM Studio local (primary)"
+    models:
+      - lm_studio/qwen/qwen3-coder-next
+      - lm_studio/qwen3.5-27b-claude-4.6-opus-reasoning-distilled-v2
+  - tier: 2
+    label: "Ollama local (backup)"
     models:
       - ollama/codellama:13b
       - ollama/qwen2.5-coder:14b
-  - tier: 2
-    label: "Mid-level local"
+  - tier: 3
+    label: "Top-level Ollama"
     models:
       - ollama/deepseek-coder-v2:16b
       - ollama/deepseek-r1:14b
-  - tier: 3
-    label: "Top-level local"
-    models:
       - ollama/qwen2.5-coder:32b
   - tier: 4
     label: "API models (last resort)"
@@ -186,29 +230,32 @@ escalation_tiers:
 task_type_recommendations:
   coding:
     preferred:
-      - ollama/qwen2.5-coder:32b
-      - ollama/deepseek-coder-v2:16b
+      - lm_studio/qwen/qwen3-coder-next
+      - lm_studio/qwen3.5-27b-claude-4.6-opus-reasoning-distilled-v2
     fallback:
+      - ollama/qwen2.5-coder:32b
       - openai/gpt-4o
   testing:
     preferred:
-      - ollama/qwen2.5-coder:14b
-      - ollama/qwen2.5-coder:32b
+      - lm_studio/qwen/qwen3-coder-next
     fallback:
+      - ollama/qwen2.5-coder:14b
       - openai/gpt-4o-mini
   reviewing:
     preferred:
-      - anthropic/claude-sonnet
+      - lm_studio/qwen3.5-27b-claude-4.6-opus-reasoning-distilled-v2
     fallback:
+      - anthropic/claude-sonnet
       - openai/gpt-4o
   planning:
     preferred:
-      - ollama/deepseek-r1:14b
+      - lm_studio/qwen3.5-27b-claude-4.6-opus-reasoning-distilled-v2
     fallback:
+      - ollama/deepseek-r1:14b
       - openai/gpt-4o
   architecture:
     preferred:
-      - ollama/qwen2.5-coder:32b
-      - ollama/deepseek-r1:14b
+      - lm_studio/qwen3.5-27b-claude-4.6-opus-reasoning-distilled-v2
     fallback:
+      - ollama/qwen2.5-coder:32b
       - openai/gpt-4o

@@ -68,13 +68,13 @@ Api / Cli              → Presentation layer
 ## Agents
 | Agent | Role | Default Model |
 |-------|------|---------------|
-| Product Owner | Request analysis, user stories, interactive chat | deepseek-r1:14b |
-| Planner | Stories → technical tasks | deepseek-r1:14b |
-| Architect | Structure, scaffolding, sprint management | qwen2.5-coder:14b |
-| Model Manager | LLM assignment, performance tracking | deepseek-r1:14b |
-| Coder Workers | Code writing (dynamic pool) | VARIABLE |
-| Tester | Test writing + execution | qwen2.5-coder:14b |
-| Reviewer | Code quality, security, approval | claude-sonnet |
+| Product Owner | Request analysis, user stories, interactive chat | qwen3.5-27b-reasoning (LM Studio) |
+| Planner | Stories → technical tasks | qwen3.5-27b-reasoning (LM Studio) |
+| Architect | Structure, scaffolding, sprint management | qwen3.5-27b-reasoning (LM Studio) |
+| Model Manager | LLM assignment, performance tracking | qwen3.5-27b-reasoning (LM Studio) |
+| Coder Workers | Code writing (dynamic pool) | qwen3-coder-next (LM Studio) |
+| Tester | Test writing + execution | qwen3-coder-next (LM Studio) |
+| Reviewer | Code quality, security, approval | qwen3.5-27b-reasoning (LM Studio) |
 
 ## Pipeline (Iterative Loop)
 ```
