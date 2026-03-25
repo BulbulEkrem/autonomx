@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutoNomX.Infrastructure.Persistence.Repositories;
 
+/// <summary>EF Core repository implementation for agent definition entities.</summary>
 public class AgentRepository(AutoNomXDbContext context) : IAgentRepository
 {
     public async Task<AgentDefinition?> GetByIdAsync(Guid id, CancellationToken ct = default)

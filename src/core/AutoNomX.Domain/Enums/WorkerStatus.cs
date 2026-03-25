@@ -1,5 +1,6 @@
 namespace AutoNomX.Domain;
 
+/// <summary>Current operational status of a coder worker.</summary>
 public enum WorkerStatus
 {
     Idle,

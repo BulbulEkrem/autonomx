@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutoNomX.Infrastructure.Persistence.Repositories;
 
+/// <summary>EF Core repository implementation for coder worker entities.</summary>
 public class CoderWorkerRepository(AutoNomXDbContext context) : ICoderWorkerRepository
 {
     public async Task<CoderWorker?> GetByIdAsync(Guid id, CancellationToken ct = default)

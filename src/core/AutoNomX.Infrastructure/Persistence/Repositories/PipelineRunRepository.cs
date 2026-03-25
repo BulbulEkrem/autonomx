@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutoNomX.Infrastructure.Persistence.Repositories;
 
+/// <summary>EF Core repository implementation for pipeline run entities.</summary>
 public class PipelineRunRepository(AutoNomXDbContext context) : IPipelineRunRepository
 {
     public async Task<PipelineRun?> GetByIdAsync(Guid id, CancellationToken ct = default)

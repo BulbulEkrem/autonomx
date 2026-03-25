@@ -2,6 +2,7 @@ using AutoNomX.Domain.Entities;
 
 namespace AutoNomX.Domain.Interfaces;
 
+/// <summary>Repository for managing agent definition entities.</summary>
 public interface IAgentRepository
 {
     Task<AgentDefinition?> GetByIdAsync(Guid id, CancellationToken ct = default);

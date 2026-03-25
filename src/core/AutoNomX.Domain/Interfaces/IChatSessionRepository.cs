@@ -2,6 +2,7 @@ using AutoNomX.Domain.Entities;
 
 namespace AutoNomX.Domain.Interfaces;
 
+/// <summary>Repository for managing Product Owner chat sessions.</summary>
 public interface IChatSessionRepository
 {
     Task<ChatSession?> GetByIdAsync(Guid id, CancellationToken ct = default);

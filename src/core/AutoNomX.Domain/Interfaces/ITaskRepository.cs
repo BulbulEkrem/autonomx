@@ -2,6 +2,7 @@ using AutoNomX.Domain.Entities;
 
 namespace AutoNomX.Domain.Interfaces;
 
+/// <summary>Repository for managing task item entities.</summary>
 public interface ITaskRepository
 {
     Task<TaskItem?> GetByIdAsync(Guid id, CancellationToken ct = default);

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutoNomX.Infrastructure.Persistence.Repositories;
 
+/// <summary>EF Core repository implementation for change log entities.</summary>
 public class ChangeLogRepository(AutoNomXDbContext context) : IChangeLogRepository
 {
     public async Task<ChangeLog?> GetByIdAsync(Guid id, CancellationToken ct = default)
