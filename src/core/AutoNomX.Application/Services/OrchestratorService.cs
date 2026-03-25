@@ -59,6 +59,9 @@ public class OrchestratorService(
             logger.LogWarning(ex, "Git init failed (non-fatal): {Message}", ex.Message);
         }
 
+        // Ensure worker pool is initialized (auto-create default workers if empty)
+        await EnsureWorkerPoolAsync(ct);
+
         // Create state machine
         var sm = PipelineStateMachine.Create(projectId, pipelineRunRepo, unitOfWork, smLogger);
         var run = sm.GetPipelineRun();
@@ -682,6 +685,24 @@ public class OrchestratorService(
             sm.CurrentState.ToString(),
             sm.CurrentState.ToString(),
             sm.CurrentState == PipelineState.Completed), ct);
+    }
+
+    // ── Worker Pool ───────────────────────────────────────────
+
+    private async Task EnsureWorkerPoolAsync(CancellationToken ct)
+    {
+        var existing = await workerRepo.GetIdleWorkersAsync(ct);
+        var allWorkers = await workerRepo.GetAllAsync(ct);
+        if (allWorkers.Count > 0) return;
+
+        // Auto-create default workers from config/agents.yaml coder_pool
+        logger.LogInformation("No workers found, auto-initializing default worker pool");
+        var defaultTemplates = new[]
+        {
+            new WorkerTemplate(2, "lm_studio/qwen/qwen3-coder-next", "lm_studio"),
+            new WorkerTemplate(1, "lm_studio/qwen3.5-27b-claude-4.6-opus-reasoning-distilled-v2", "lm_studio"),
+        };
+        await workerPool.InitializeFromConfigAsync(defaultTemplates, ct);
     }
 
     // ── Task Board Initialization ─────────────────────────────
