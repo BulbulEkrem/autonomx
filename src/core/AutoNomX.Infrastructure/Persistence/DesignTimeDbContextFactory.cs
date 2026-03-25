@@ -9,7 +9,7 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<AutoNomXDb
     {
         var optionsBuilder = new DbContextOptionsBuilder<AutoNomXDbContext>();
         optionsBuilder.UseNpgsql(
-            "Host=localhost;Port=5432;Database=autonomx;Username=autonomx;Password=autonomx",
+            "Host=localhost;Port=5432;Database=autonomx;Username=autonomx;Password=autonomx_dev",
             b => b.MigrationsAssembly(typeof(AutoNomXDbContext).Assembly.FullName));
 
         return new AutoNomXDbContext(optionsBuilder.Options);
