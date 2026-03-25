@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutoNomX.Infrastructure.Persistence.Repositories;
 
+/// <summary>EF Core repository implementation for project file entities with file locking support.</summary>
 public class ProjectFileRepository(AutoNomXDbContext context) : IProjectFileRepository
 {
     public async Task<IReadOnlyList<ProjectFile>> GetByProjectIdAsync(Guid projectId, CancellationToken ct = default)

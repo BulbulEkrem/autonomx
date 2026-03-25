@@ -2,6 +2,7 @@ using AutoNomX.Domain.Entities;
 
 namespace AutoNomX.Domain.Interfaces;
 
+/// <summary>Repository for managing project change log entries.</summary>
 public interface IChangeLogRepository
 {
     Task<ChangeLog?> GetByIdAsync(Guid id, CancellationToken ct = default);

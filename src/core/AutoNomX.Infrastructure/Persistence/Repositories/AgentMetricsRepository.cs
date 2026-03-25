@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutoNomX.Infrastructure.Persistence.Repositories;
 
+/// <summary>EF Core repository implementation for agent metrics entities.</summary>
 public class AgentMetricsRepository(AutoNomXDbContext context) : IAgentMetricsRepository
 {
     public async Task<AgentMetrics?> GetByAgentAndModelAsync(Guid agentId, string model, CancellationToken ct = default)

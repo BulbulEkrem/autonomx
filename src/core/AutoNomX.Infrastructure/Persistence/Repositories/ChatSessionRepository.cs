@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutoNomX.Infrastructure.Persistence.Repositories;
 
+/// <summary>EF Core repository implementation for chat session entities.</summary>
 public class ChatSessionRepository(AutoNomXDbContext context) : IChatSessionRepository
 {
     public async Task<ChatSession?> GetByIdAsync(Guid id, CancellationToken ct = default)

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutoNomX.Infrastructure.Persistence.Repositories;
 
+/// <summary>EF Core repository implementation for agent history entities.</summary>
 public class AgentHistoryRepository(AutoNomXDbContext context) : IAgentHistoryRepository
 {
     public async Task<IReadOnlyList<AgentHistory>> GetByAgentIdAsync(Guid agentId, CancellationToken ct = default)

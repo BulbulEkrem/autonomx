@@ -103,7 +103,7 @@ class TestModelManagerAgent:
         result = agent._generate_fallback(input_data)
 
         assert result["decision_type"] == "task_assignment"
-        assert result["assigned_to"] == "worker-a"
+        assert result["assigned_to"] == "w1"
         assert "Fallback" in result["reasoning"]
 
     def test_generate_fallback_switch(self, agent):

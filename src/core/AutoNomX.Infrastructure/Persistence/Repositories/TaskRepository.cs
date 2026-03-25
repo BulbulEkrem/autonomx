@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutoNomX.Infrastructure.Persistence.Repositories;
 
+/// <summary>EF Core repository implementation for task item entities.</summary>
 public class TaskRepository(AutoNomXDbContext context) : ITaskRepository
 {
     public async Task<TaskItem?> GetByIdAsync(Guid id, CancellationToken ct = default)

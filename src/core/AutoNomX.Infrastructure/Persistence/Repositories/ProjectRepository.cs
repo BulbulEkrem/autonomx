@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AutoNomX.Infrastructure.Persistence.Repositories;
 
+/// <summary>EF Core repository implementation for project entities.</summary>
 public class ProjectRepository(AutoNomXDbContext context) : IProjectRepository
 {
     public async Task<Project?> GetByIdAsync(Guid id, CancellationToken ct = default)

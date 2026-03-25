@@ -2,6 +2,7 @@ using AutoNomX.Domain.Entities;
 
 namespace AutoNomX.Domain.Interfaces;
 
+/// <summary>Repository for managing project files with file locking support.</summary>
 public interface IProjectFileRepository
 {
     Task<IReadOnlyList<ProjectFile>> GetByProjectIdAsync(Guid projectId, CancellationToken ct = default);
