@@ -4,7 +4,7 @@
 agents:
   product_owner:
     type: product_owner
-    model: "ollama/deepseek-r1:14b"
+    model: "deepseek-r1-14b-lmstudio"
     provider: ollama
     description: "İstek analizi, user story oluşturma, kullanıcı chat"
     parameters:
@@ -13,7 +13,7 @@ agents:
 
   planner:
     type: planner
-    model: "ollama/deepseek-r1:14b"
+    model: "deepseek-r1-14b-lmstudio"
     provider: ollama
     description: "User story → teknik task dönüşümü"
     parameters:
@@ -22,7 +22,7 @@ agents:
 
   architect:
     type: architect
-    model: "ollama/qwen2.5-coder:14b"
+    model: "deepseek-r1-14b-lmstudio"
     provider: ollama
     description: "Proje yapısı, scaffolding, sprint yönetimi"
     parameters:
@@ -31,7 +31,7 @@ agents:
 
   model_manager:
     type: model_manager
-    model: "ollama/deepseek-r1:14b"
+    model: "deepseek-r1-14b-lmstudio"
     provider: ollama
     description: "LLM atama, performans takibi, model optimizasyonu"
     parameters:
@@ -40,7 +40,7 @@ agents:
 
   tester:
     type: tester
-    model: "ollama/qwen2.5-coder:14b"
+    model: "deepseek-r1-14b-lmstudio"
     provider: ollama
     description: "Test yazma ve çalıştırma"
     parameters:
@@ -49,7 +49,7 @@ agents:
 
   reviewer:
     type: reviewer
-    model: "anthropic/claude-sonnet"
+    model: "deepseek-r1-14b-lmstudio"
     provider: anthropic
     description: "Kod kalitesi, güvenlik, onay"
     parameters:
@@ -60,7 +60,7 @@ agents:
 coder_pool:
   workers:
     - count: 2
-      model: "ollama/qwen2.5-coder:32b"
+      model: "deepseek-r1-14b-lmstudio"
       provider: ollama
     - count: 1
       model: "ollama/deepseek-coder-v2:16b"

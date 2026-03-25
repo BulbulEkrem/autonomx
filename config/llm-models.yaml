@@ -3,6 +3,11 @@
 # Her model icin: strengths, language_specialties, context_window, speed_tier, cost_tier
 
 models:
+  deepseek-r1-14b-lmstudio:
+      provider: lm_studio
+      model: "local"  # LM Studio'daki model adı ne ise o
+      capabilities: [reasoning, code]
+      tier: 1
   # ── Local Models (Ollama) ──────────────────────────────────
   ollama/qwen2.5-coder:32b:
     display_name: "Qwen 2.5 Coder 32B"

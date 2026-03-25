@@ -16,7 +16,9 @@ using Spectre.Console;
 // ── Build Host ──────────────────────────────────────────────
 var builder = Host.CreateApplicationBuilder(args);
 
-builder.Configuration.AddJsonFile("appsettings.json", optional: true);
+builder.Configuration.SetBasePath(AppContext.BaseDirectory);
+
+builder.Configuration.AddJsonFile("appsettings.json", optional: false);
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
