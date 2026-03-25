@@ -243,12 +243,18 @@ public class TaskBoardService(
     }
 
     /// <summary>Check if all tasks for a project are completed.</summary>
+    /// <remarks>
+    /// Returns true when there are no tasks (nothing left to do, e.g. dry-run mode)
+    /// or when all tasks have status Done.
+    /// </remarks>
     public async Task<bool> AreAllTasksCompletedAsync(
         Guid projectId,
         CancellationToken ct = default)
     {
         var tasks = await taskRepo.GetByProjectIdAsync(projectId, ct);
-        return tasks.Count > 0 && tasks.All(t => t.Status == TaskItemStatus.Done);
+        // No tasks means nothing left to do — treat as completed to prevent infinite loops
+        if (tasks.Count == 0) return true;
+        return tasks.All(t => t.Status == TaskItemStatus.Done);
     }
 
     /// <summary>Check if all coding tasks are either Done or Failed (no InProgress/Ready).</summary>
