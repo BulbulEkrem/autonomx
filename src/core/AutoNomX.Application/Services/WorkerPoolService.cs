@@ -2,7 +2,6 @@ using AutoNomX.Domain;
 using AutoNomX.Domain.Entities;
 using AutoNomX.Domain.Events;
 using AutoNomX.Domain.Interfaces;
-using MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace AutoNomX.Application.Services;
@@ -14,7 +13,6 @@ namespace AutoNomX.Application.Services;
 public class WorkerPoolService(
     ICoderWorkerRepository workerRepo,
     IUnitOfWork unitOfWork,
-    IMediator mediator,
     ILogger<WorkerPoolService> logger)
 {
     /// <summary>

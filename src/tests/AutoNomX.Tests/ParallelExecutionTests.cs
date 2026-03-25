@@ -80,7 +80,7 @@ public class ParallelExecutionTests
     [Fact]
     public async Task WorkerPool_InitAndDynamicAdd()
     {
-        var pool = new WorkerPoolService(_workerRepo, _unitOfWork, _mediator, _poolLogger);
+        var pool = new WorkerPoolService(_workerRepo, _unitOfWork, _poolLogger);
 
         _workerRepo.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(new List<CoderWorker>());
