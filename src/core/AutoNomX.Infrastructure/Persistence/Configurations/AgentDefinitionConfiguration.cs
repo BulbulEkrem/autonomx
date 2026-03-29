@@ -19,7 +19,6 @@ public class AgentDefinitionConfiguration : IEntityTypeConfiguration<AgentDefini
         builder.Property(a => a.LlmConfig).HasColumnType("jsonb");
 
         builder.HasMany(a => a.Histories).WithOne(h => h.Agent).HasForeignKey(h => h.AgentId);
-        builder.HasMany(a => a.Metrics).WithOne(m => m.Agent).HasForeignKey(m => m.AgentId);
 
         builder.HasIndex(a => a.Name).IsUnique();
         builder.HasIndex(a => a.Type);

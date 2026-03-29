@@ -407,7 +407,7 @@ public class OrchestratorService(
         CoderWorker worker,
         CancellationToken ct)
     {
-        var branchName = $"feature/T-{task.Id.ToString()[..8]}-{SanitizeBranchName(task.Title)}";
+        var branchName = task.GitBranch ?? $"feature/T-{task.Id.ToString()[..8]}-{SanitizeBranchName(task.Title)}";
         var startTime = DateTime.UtcNow;
 
         try
@@ -699,8 +699,8 @@ public class OrchestratorService(
         logger.LogInformation("No workers found, auto-initializing default worker pool");
         var defaultTemplates = new[]
         {
-            new WorkerTemplate(2, "lm_studio/qwen/qwen3-coder-next", "lm_studio"),
-            new WorkerTemplate(1, "lm_studio/qwen3.5-27b-claude-4.6-opus-reasoning-distilled-v2", "lm_studio"),
+            new WorkerTemplate(2, "qwen2.5-coder:32b", "ollama"),
+            new WorkerTemplate(1, "deepseek-coder:33b", "ollama"),
         };
         await workerPool.InitializeFromConfigAsync(defaultTemplates, ct);
     }

@@ -100,7 +100,8 @@ public class ParallelExecutionTests
                 CreateWorker("worker-b"),
             });
 
-        var added = await pool.AddWorkerAsync("deepseek-coder:33b", "lm_studio");
+        // Act: add a new worker at runtime
+        var added = await pool.AddWorkerAsync("deepseek-coder:33b", "ollama");
         Assert.Equal("worker-c", added.Name);
         Assert.Equal("deepseek-coder:33b", added.Model);
     }

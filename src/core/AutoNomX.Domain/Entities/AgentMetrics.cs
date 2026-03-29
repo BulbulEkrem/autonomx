@@ -17,5 +17,4 @@ public class AgentMetrics : BaseEntity
     public double AvgDurationSeconds { get; set; }
 
     // Navigation
-    public AgentDefinition Agent { get; set; } = null!;
 }

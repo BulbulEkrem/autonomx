@@ -30,7 +30,7 @@ public class WorkerPoolServiceTests
         var templates = new[]
         {
             new WorkerTemplate(2, "qwen2.5-coder:32b", "ollama"),
-            new WorkerTemplate(1, "deepseek-coder:33b", "lm_studio"),
+            new WorkerTemplate(1, "deepseek-coder:33b", "ollama"),
         };
 
         // Act

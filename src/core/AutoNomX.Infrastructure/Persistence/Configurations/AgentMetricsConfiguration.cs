@@ -14,7 +14,6 @@ public class AgentMetricsConfiguration : IEntityTypeConfiguration<AgentMetrics>
         builder.Property(m => m.ModelUsed).HasMaxLength(256).IsRequired();
 
         // AgentId can reference either agents or coder_workers, so no FK constraint
-        builder.Ignore(m => m.Agent);
         builder.Property(m => m.AgentId).IsRequired();
 
         builder.HasIndex(m => new { m.AgentId, m.ModelUsed }).IsUnique();
